@@ -1,0 +1,1 @@
+/Users/mostafalotfy/Documents/University/Fall\ 2023/Distributed\ Systems/Project/hello_world/target/debug/hello_world: /Users/mostafalotfy/Documents/University/Fall\ 2023/Distributed\ Systems/Project/hello_world/src/main.rs
