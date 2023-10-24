@@ -1,8 +1,9 @@
+// This is the client
 use tokio::net::UdpSocket;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let remote_addr = "127.0.0.1:8080"; // IP address and port of Node 2
+    let remote_addr = "127.0.0.1:8080"; // IP address and port of the Server
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let message = "Hello, World!";
