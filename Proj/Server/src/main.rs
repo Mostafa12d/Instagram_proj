@@ -1,9 +1,9 @@
+// This is the server
 use tokio::net::UdpSocket;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let local_addr = "127.0.0.1:8080"; // IP address and port you want Node 2 to listen on
-
+    let local_addr = "127.0.0.1:8080"; // IP address and port you want the server (this process) to listen on
     let socket = UdpSocket::bind(local_addr).await?;
     let mut buffer = vec![0; 4096]; // Buffer to receive the message
     let (num_bytes, _) = socket.recv_from(&mut buf)?;
