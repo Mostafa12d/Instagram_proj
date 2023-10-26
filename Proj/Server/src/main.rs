@@ -8,7 +8,7 @@ use std::io::{BufReader, BufRead};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //Specify address form file
-    let filename = "/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/DoS.txt";
+    let filename = "DoSS.txt";
     let file = File::open(filename).expect("no such file");
     let buf = BufReader::new(file);
     let local_addr_v: Vec<String> = buf.lines()
