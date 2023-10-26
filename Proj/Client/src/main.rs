@@ -7,15 +7,15 @@ use std::io::{BufReader, BufRead};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //Specify address form file
-    let filename = "DoSC.txt";
-    let file = File::open(filename).expect("no such file");
-    let buf = BufReader::new(file);
-    let local_addr_v: Vec<String> = buf.lines()
-    .map(|l| l.expect("Could not parse line"))
-    .collect();
-    for addr in &local_addr_v{
-        println!("{}", addr);
-    }
+    // let filename = "DoSC.txt";
+    // let file = File::open(filename).expect("no such file");
+    // let buf = BufReader::new(file);
+    // let local_addr_v: Vec<String> = buf.lines()
+    // .map(|l| l.expect("Could not parse line"))
+    // .collect();
+    // for addr in &local_addr_v{
+    //     println!("{}", addr);
+    // }
 
     //Specify address from command line
     // let args: Vec<String> = std::env::args().collect();
@@ -25,15 +25,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = "0.0.0.0:8086"; // IP address and port you want the server (this process) to listen on
 
     //original
-    let remote_addr = "127.0.0.1:8080"; // IP address and port of the Server
+    let remote_addr1 = "172.20.10.5:8080"; // IP address and port of the Server 1
+    let remote_addr2 = "172.20.10.5:8081"; // IP address and port of the Server 2
+    let remote_addr3 = "172.20.10.5:8082"; // IP address and port of the Server 3
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    let message = "Hello, World!";
-    let message_bytes = message.as_bytes();
+    let message = "Hello, Server!";
+    let message_bytes = message.as_bytes();                  
 
-    socket.send_to(message_bytes, remote_addr).await?;
+    socket.send_to(message_bytes, remote_addr3).await?;
+    socket.send_to(message_bytes, remote_addr2).await?;
+    socket.send_to(message_bytes, remote_addr1).await?;
 
-    println!("Sent: {}", message);
+    println!("Sent: {} to {}", message, remote_addr1);
+    println!("Sent: {} to {}", message, remote_addr2);
+    println!("Sent: {} to {}", message, remote_addr3);
+
+    //Receive Reply from server
+    let mut buffer = [0; 1024]; // Buffer to receive the message
+
+    loop {
+        let (len, src) = socket.recv_from(&mut buffer).await?;
+        let message = std::str::from_utf8(&buffer[..len])?;
+
+        println!("Received: {} from {}", message, src);
+    }
 
     Ok(())
 }
