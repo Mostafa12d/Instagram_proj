@@ -1,7 +1,6 @@
 // This is the server
 use tokio::net::UdpSocket;
 use std::fs::File;
-use std::path::Path;
 use std::io::{BufReader, BufRead};
 
 #[tokio::main]
@@ -9,7 +8,7 @@ use std::io::{BufReader, BufRead};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //Specify address form file
-    let filename = "/home/tamer/Documents/DS/Instagram_proj/Proj/DoS.txt";
+    let filename = "DoSS.txt";
     let file = File::open(filename).expect("no such file");
     let buf = BufReader::new(file);
     let local_addr_v: Vec<String> = buf.lines()
@@ -28,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     //bind sockets
     let local_addr = &local_addr_v[0];
-    let socket = UdpSocket::bind(laddr).await?;
+    let socket = UdpSocket::bind(local_addr).await?;
     let mut buffer = [0; 1024]; // Buffer to receive the message
 
     loop {
@@ -43,4 +42,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Sent: {} bytes to {}", sent_len, src);
     }
 }
-
