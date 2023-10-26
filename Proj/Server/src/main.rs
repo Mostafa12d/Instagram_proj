@@ -1,7 +1,6 @@
 // This is the server
 use tokio::net::UdpSocket;
 use std::fs::File;
-use std::path::Path;
 use std::io::{BufReader, BufRead};
 
 #[tokio::main]
