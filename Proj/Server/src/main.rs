@@ -7,26 +7,27 @@ use std::io::{BufReader, BufRead};
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    //Specify address form file
-    let filename = "DoSS.txt";
-    let file = File::open(filename).expect("no such file");
-    let buf = BufReader::new(file);
-    let local_addr_v: Vec<String> = buf.lines()
-    .map(|l| l.expect("Could not parse line"))
-    .collect();
-    for addr in &local_addr_v{
-        println!("{}", addr);
-    }
+    // //Specify address form file
+    // let filename = "DoSS.txt";
+    // let file = File::open(filename).expect("no such file");
+    // let buf = BufReader::new(file);
+    // let local_addr_v: Vec<String> = buf.lines()
+    // .map(|l| l.expect("Could not parse line"))
+    // .collect();
+    // for addr in &local_addr_v{
+    //     println!("{}", addr);
+    // }
+    //let local_addr = &local_addr_v[0];
 
-    //Specify address from command line
-    // let args: Vec<String> = std::env::args().collect();
-    // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
+    // Specify address from command line
+    let args: Vec<String> = std::env::args().collect();
+    let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
     // //Specify address from code
     // let local_addr = "0.0.0.0:8086"; // IP address and port you want the server (this process) to listen on
     
     //bind sockets
-    let local_addr = &local_addr_v[0];
+
     let socket = UdpSocket::bind(local_addr).await?;
     let mut buffer = [0; 1024]; // Buffer to receive the message
 
