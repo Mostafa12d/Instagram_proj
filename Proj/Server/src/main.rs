@@ -41,6 +41,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let response = "Hello, client!"; // Change this to your response message
         let sent_len = socket.send_to(response.as_bytes(), &src).await?;
         println!("Sent: {} bytes to {}", sent_len, src);
+
+        // Send a response back to the client
+        let response = "Hello, client!"; // Change this to your response message
+        let sent_len = socket.send_to(response.as_bytes(), &src).await?;
+        println!("Sent: {} bytes to {}", sent_len, src);
     }
 }
 
