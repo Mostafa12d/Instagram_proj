@@ -1,6 +1,6 @@
 [package]
-name = "hello"
-version = "0.1.0"
+name = "Server"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 
+[[bin]]
+name = "server"  # This is the name of the binary
+path = "src/server.rs"  # This is the path to your source code file

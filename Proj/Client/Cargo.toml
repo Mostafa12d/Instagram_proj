@@ -1,9 +1,13 @@
 [package]
-name = "node2"
-version = "0.1.0"
+name = "Client"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+
+[[bin]]
+name = "client"  # This is the name of the binary
+path = "src/client.rs"  # This is the path to your source code file
