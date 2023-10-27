@@ -22,12 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
     // //Specify address from code
-    // let local_addr = "0.0.0.0:8086"; // IP address and port you want the server (this process) to listen on
+    // let local_addr = "0.0.0.0:8086"; 
 
     //original
-    let remote_addr1 = "172.20.10.5:8080"; // IP address and port of the Server 1
-    let remote_addr2 = "172.20.10.5:8081"; // IP address and port of the Server 2
-    let remote_addr3 = "172.20.10.5:8082"; // IP address and port of the Server 3
+    let remote_addr1 = "172.29.255.134:8083"; // IP address and port of the Server 1
+    let remote_addr2 = "172.29.255.134:8081"; // IP address and port of the Server 2
+    let remote_addr3 = "172.29.255.134:8082"; // IP address and port of the Server 3
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let message = "Hello, Server!";
