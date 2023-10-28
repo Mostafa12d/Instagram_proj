@@ -2,3 +2,4 @@ IP: 172.29.255.134, Port: 8030, Status: 1
 IP: 172.29.255.134, Port: 8065, Status: 1
 IP: 172.29.255.134, Port: 21243, Status: 1
 IP: 172.29.255.134, Port: 10011, Status: 2
+IP: 172.29.255.134, Port: 10012, Status: 1

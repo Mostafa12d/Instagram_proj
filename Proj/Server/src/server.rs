@@ -16,21 +16,6 @@ struct ServerInfo {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let filename = "/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt";
-    // //Specify address form file
-    let file = File::open(filename).expect("no such file1");
-    let buf = BufReader::new(file);
-    let servers: Vec<String> = buf.lines()
-    .map(|l| l.expect("Could not parse line"))
-    .collect();
-    println!("Servers currently up:");
-    for addr in &servers{
-        println!("{}", addr);
-    }
-
-    // Specify address from command line
-    //let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
-    // let args: Vec<String> = std::env::args().collect();
     
     // Get Port from Command Line
     let args: Vec<String> = std::env::args().collect();
@@ -47,14 +32,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         port: portNum.to_string(),  //the server's port
         status: 1, // Set the server's status
     };
-    //bind sockets
-    // let _socket = UdpSocket::bind(local_addr).await?;
-    // let _buffer = [0; 1024]; // Buffer to receive the message
-
 
     // Append server information to a txt file
     append_server_info_to_file(&server_info)?;
-
     // Start the server
     start_server(&server_info).await?;
 
@@ -75,7 +55,8 @@ impl ServerInfo {
 
 // Append server information to a txt file
 fn append_server_info_to_file(info: &ServerInfo) -> Result<(), Box<dyn Error>> {
-    let filename = "DoSS.txt"; 
+
+    let filename = "/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt"; 
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -89,7 +70,7 @@ fn append_server_info_to_file(info: &ServerInfo) -> Result<(), Box<dyn Error>> {
         println!("Server info already exists in the file. Skipping...");
     } else {
         let line = format!("IP: {}, Port: {}, Status: {}\n", info.ip, info.port, info.status);
-        file.write_all(line.as_bytes())?;
+        file.write(line.as_bytes()).expect("write failed");
         println!("Server info added to the file.");
     }
 
