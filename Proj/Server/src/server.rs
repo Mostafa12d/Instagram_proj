@@ -3,6 +3,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, Write};
 use std::error::Error;
 use rand::seq::SliceRandom;
+use std::net::{SocketAddr, Ipv4Addr}; // to identify the ip address of the machine this code is running on
+use local_ip_address::local_ip;
 
 // Struct to represent server information
 #[derive(Clone)] // Implement the Clone trait
@@ -15,18 +17,33 @@ struct ServerInfo {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // //Specify address form file
-    // let filename = "DoSS.txt";
-    // let file = File::open(filename).expect("no such file");
-    // let buf = BufReader::new(file);
-    // let local_addr_v: Vec<String> = buf.lines()
-    // .map(|l| l.expect("Could not parse line"))
-    // .collect();
-    // for addr in &local_addr_v{
-    //     println!("{}", addr);
-    // }
+    let filename = "DoSS.txt";
+    let file = File::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    let servers: Vec<String> = buf.lines()
+    .map(|l| l.expect("Could not parse line"))
+    .collect();
+    println!("Servers currently up:");
+    for addr in &servers{
+        println!("{}", addr);
+    }
     //let local_addr = &local_addr_v[0];
 
     // Specify address from command line
+    let args: Vec<String> = std::env::args().collect();
+    //let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
+    let local_addr = local_ip().unwrap(); // Get the dynamically assigned IP address
+
+
+    // //Specify address from code
+    let local_add = "0.0.0.0:8093"; // IP address and port you want the server (this process) to listen on
+    
+    //bind sockets
+
+    
+
+    let socket = UdpSocket::bind(local_add).await?;
+    let mut buffer = [0; 1024]; // Buffer to receive the message
     // let args: Vec<String> = std::env::args().collect();
     // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
@@ -95,6 +112,16 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     // Print server information
     println!("Server is running with the following info:");
     println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
+    println!("This server is listening on: {}", local_addr);
+
+
+    // Determine if this server is the leader based on the highest IP address
+    // let is_leader = is_leader(&servers);
+    // if is_leader {
+    //     println!("I am the leader.");
+    // } else {
+    //     println!("I am not the leader.");
+    // }
 
 
     loop {
@@ -200,3 +227,4 @@ fn find_active_server() -> Result<Option<ServerInfo>, Box<dyn Error>> {
         }
     }
 }
+
