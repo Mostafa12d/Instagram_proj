@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, Write};
 use std::error::Error;
 use rand::seq::SliceRandom;
-use std::net::{SocketAddr, Ipv4Addr}; // to identify the ip address of the machine this code is running on
+ // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
 // Struct to represent server information
@@ -16,9 +16,9 @@ struct ServerInfo {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let filename = "/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt";
     // //Specify address form file
-    let filename = "DoSS.txt";
-    let file = File::open(filename).expect("no such file");
+    let file = File::open(filename).expect("no such file1");
     let buf = BufReader::new(file);
     let servers: Vec<String> = buf.lines()
     .map(|l| l.expect("Could not parse line"))
@@ -35,18 +35,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Get Port from Command Line
     let args: Vec<String> = std::env::args().collect();
     let portNum = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
+    println!("{}", portNum);
     //Function finds the ip of the running server
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     // Create a server
-    let local_addr = local_ip.to_string()+":"+portNum;    
+    let local_addr = local_ip.to_string()+":"+portNum;
+    println!("{}", local_addr);
+
     let server_info = ServerInfo {
         ip: local_ip.to_string(), // Set the server's IP address
-        port: portNum.to_string(), // Set the server's port
+        port: portNum.to_string(),  //the server's port
         status: 1, // Set the server's status
     };
     //bind sockets
-    let socket = UdpSocket::bind(local_addr).await?;
-    let mut buffer = [0; 1024]; // Buffer to receive the message
+    // let _socket = UdpSocket::bind(local_addr).await?;
+    // let _buffer = [0; 1024]; // Buffer to receive the message
 
 
     // Append server information to a txt file
@@ -192,7 +195,7 @@ fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box
     // Ok(())
     
     let filename = "DoSS.txt";
-    let file = File::open(filename).expect("no such file");
+    let _file = File::open(filename).expect("no such file");
     // let buf = BufReader::new(file);
     // let buf = BufReader::new(file);
     // let file_contents: Vec<String> = buf.lines()

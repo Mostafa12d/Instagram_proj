@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
     // //Specify address from code
-    let local_addr = "172.29.255.134:8090"; 
+    let local_addr = "172.29.255.134:10011"; 
 
     //original
     let remote_addr1 = "172.29.255.134:8092"; // IP address and port of the Server 1
