@@ -32,23 +32,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
     // let args: Vec<String> = std::env::args().collect();
     
-    
-    let local_addr = local_ip().unwrap(); // Get the dynamically assigned IP address
-
-    //bind sockets
-    let socket = UdpSocket::bind(local_addr.to_string()).await?;
-    let mut buffer = [0; 1024]; // Buffer to receive the message
-
     // Get Port from Command Line
     let args: Vec<String> = std::env::args().collect();
     let portNum = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
-
+    //Function finds the ip of the running server
+    let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     // Create a server
+    let local_addr = local_ip.to_string()+":"+portNum;    
     let server_info = ServerInfo {
-        ip: local_addr.to_string(), // Set the server's IP address
+        ip: local_ip.to_string(), // Set the server's IP address
         port: portNum.to_string(), // Set the server's port
         status: 1, // Set the server's status
     };
+    //bind sockets
+    let socket = UdpSocket::bind(local_addr).await?;
+    let mut buffer = [0; 1024]; // Buffer to receive the message
+
 
     // Append server information to a txt file
     append_server_info_to_file(&server_info)?;
@@ -73,7 +72,7 @@ impl ServerInfo {
 
 // Append server information to a txt file
 fn append_server_info_to_file(info: &ServerInfo) -> Result<(), Box<dyn Error>> {
-    let filename = "Server/DoSS.txt"; 
+    let filename = "DoSS.txt"; 
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -192,7 +191,7 @@ fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box
 
     // Ok(())
     
-    let filename = "Server/DoSS.txt";
+    let filename = "DoSS.txt";
     let file = File::open(filename).expect("no such file");
     // let buf = BufReader::new(file);
     // let buf = BufReader::new(file);
