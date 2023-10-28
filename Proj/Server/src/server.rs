@@ -4,8 +4,7 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::net::{SocketAddr, Ipv4Addr}; // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
-use core::cmp::Ordering;
-use rand::Rng;
+
 
 
 
@@ -46,15 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     // Determine if this server is the leader based on the highest IP address
-    let is_leader = is_leader(&servers);
-
-
-
-    if is_leader {
-        println!("I am the leader.");
-    } else {
-        println!("I am not the leader.");
-    }
+    // let is_leader = is_leader(&servers);
+    // if is_leader {
+    //     println!("I am the leader.");
+    // } else {
+    //     println!("I am not the leader.");
+    // }
 
 
     loop {
@@ -64,20 +60,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Received: {} from {}", message, src);
 
         // Send a response back to the client
-        let response = if is_leader {
-            "Hello, client! I am the leader."
-        } else {
-            "Hello, client! I am not the leader."
-        };
+        let response = "Hello, client!";
 
         let sent_len = socket.send_to(response.as_bytes(), &src).await?;
         println!("Sent: {} bytes to {}", sent_len, src);
     }
 }
 
-fn is_leader(servers: &[String]) -> bool {
-    // Randomly choose a leader
-    let mut rng = rand::thread_rng();
-    let leader_index = rng.gen_range(0..servers.len());
-    leader_index == 0 // For example, the first server in the list is the leader
-}
