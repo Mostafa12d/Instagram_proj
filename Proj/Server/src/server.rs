@@ -10,7 +10,7 @@ use local_ip_address::local_ip;
 #[derive(Clone)] // Implement the Clone trait
 struct ServerInfo {
     ip: String,
-    port: u16,
+    port: String,
     status: u8,
 }
 
@@ -27,33 +27,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for addr in &servers{
         println!("{}", addr);
     }
-    //let local_addr = &local_addr_v[0];
 
     // Specify address from command line
-    let args: Vec<String> = std::env::args().collect();
     //let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
+    // let args: Vec<String> = std::env::args().collect();
+    
+    
     let local_addr = local_ip().unwrap(); // Get the dynamically assigned IP address
 
-
-    // //Specify address from code
-    let local_add = "0.0.0.0:8093"; // IP address and port you want the server (this process) to listen on
-    
     //bind sockets
-
-    
-
-    let socket = UdpSocket::bind(local_add).await?;
+    let socket = UdpSocket::bind(local_addr.to_string()).await?;
     let mut buffer = [0; 1024]; // Buffer to receive the message
-    // let args: Vec<String> = std::env::args().collect();
-    // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
-    // //Specify address from code
-    // let local_addr = "0.0.0.0:8086"; // IP address and port you want the server (this process) to listen on
+    // Get Port from Command Line
+    let args: Vec<String> = std::env::args().collect();
+    let portNum = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
 
-// Create a server (TO BE EDITED LATER TO MAKE THE SERVER DYNAMIC)
+    // Create a server
     let server_info = ServerInfo {
-        ip: "127.0.0.1".to_string(), // Set the server's IP address
-        port: 8080, // Set the server's port
+        ip: local_addr.to_string(), // Set the server's IP address
+        port: portNum.to_string(), // Set the server's port
         status: 1, // Set the server's status
     };
 
@@ -80,13 +73,14 @@ impl ServerInfo {
 
 // Append server information to a txt file
 fn append_server_info_to_file(info: &ServerInfo) -> Result<(), Box<dyn Error>> {
+    let filename = "Server/DoSS.txt"; 
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("DoSS.txt")?;
+        .open(filename)?;
 
     // Read the existing contents of the file into a string
-    let file_contents = std::fs::read_to_string("DoSS.txt")?;
+    let file_contents = std::fs::read_to_string(filename)?;
 
     // Check if the server info already exists in the file
     if file_contents.contains(&format!("IP: {}, Port: {}", info.ip, info.port)) {
@@ -132,30 +126,6 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
 
         // Check the server status and respond or delegate the task
         match server_info.status {
-            1 => {
-                // If status is 1 (active), respond to the client
-                // Set the status to busy
-                if server_info.status == 1 {
-                    set_server_status(&server_info, 2)?;
-                    println!("Server is busy.");
-                    // Print server information
-                    println!("Server is running with the following info:");
-                    println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
-
-
-                }
-
-                let response = "Hello, client!";
-                let sent_len = socket.send_to(response.as_bytes(), &src).await?;
-                println!("Sent: {} bytes to {}", sent_len, src);
-
-                // Set the status back to active
-                if server_info.status == 2 {
-                    set_server_status(&server_info, 1)?;
-                }
-
-                println!("Server is active again.");
-            }
             0 => {
                 // If status is 0 (inactive), delegate to another active server
                 let delegate_server = find_active_server(); // Implement your logic to find an active server
@@ -168,6 +138,31 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
                     println!("No active server available to delegate the task.");
                 }
             }
+            1 => {
+                // If status is 1 (active), respond to the client
+                // Set the status to busy
+                if server_info.status == 1 {
+                    set_server_status(&server_info, 2)?;
+                    println!("---------------------------------------------------");
+                    println!("Server is busy.");
+                    // Print server information
+                    println!("Server is running with the following info:");
+                    println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
+                    println!("---------------------------------------------------");
+                }
+                
+                let response = "Hello, client!";
+                let sent_len = socket.send_to(response.as_bytes(), &src).await?;
+                println!("Sent: {} bytes to {}", sent_len, src);
+
+                // Set the status back to active
+                if server_info.status == 2 {
+                    set_server_status(&server_info, 1)?;
+                }
+
+                println!("Server is active again.");
+            }
+
             2 => {
                 // If status is 2 (busy), log that the server is busy
                 println!("Server is busy. No response sent.");
@@ -184,16 +179,40 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
 
 // !!!!!!!!! DOES NOT WORK PROPERLY NEEDS FIXING!!!!!!!!!
 fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box<dyn Error>> {
-    let file_contents = {
-        let file_contents = std::fs::read_to_string("DoSS.txt")?;
-        file_contents
-    };
+    // let file_contents = {
+    //     let file_contents = std::fs::read_to_string("DoSS.txt")?;
+    //     file_contents
+    // };
+
+    // let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
+    // let modified_contents = file_contents.replace(&new_server_info, "");
+
+    // // let mut file = File::create("DoSS.txt")?;
+    // // file.write_all(modified_contents.as_bytes())?;
+
+    // Ok(())
+    
+    let filename = "Server/DoSS.txt";
+    let file = File::open(filename).expect("no such file");
+    // let buf = BufReader::new(file);
+    // let buf = BufReader::new(file);
+    // let file_contents: Vec<String> = buf.lines()
+    // .map(|l| l.expect("Could not parse line"))
+    // .collect();
+
+    let file_contents = std::fs::read_to_string(filename)?;
+
+
 
     let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
-    let modified_contents = file_contents.replace(&new_server_info, "");
+    
+    let modified_contents = file_contents.replace(
+        &format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status),
+        &new_server_info,
+    );
 
-    // let mut file = File::create("DoSS.txt")?;
-    // file.write_all(modified_contents.as_bytes())?;
+    let mut file = File::create("DoSS.txt")?;
+    file.write(modified_contents.as_bytes()).expect("failed writing");
 
     Ok(())
 }
