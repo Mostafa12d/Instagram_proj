@@ -16,7 +16,7 @@ struct ServerInfo {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    
+
     // Get Port from Command Line
     let args: Vec<String> = std::env::args().collect();
     let portNum = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
@@ -77,8 +77,6 @@ fn append_server_info_to_file(info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-
-
 // Start the server
 async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     let local_addr = format!("{}:{}", server_info.ip, server_info.port);
@@ -90,16 +88,6 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     println!("Server is running with the following info:");
     println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
     println!("This server is listening on: {}", local_addr);
-
-
-    // Determine if this server is the leader based on the highest IP address
-    // let is_leader = is_leader(&servers);
-    // if is_leader {
-    //     println!("I am the leader.");
-    // } else {
-    //     println!("I am not the leader.");
-    // }
-
 
     loop {
         let (len, src) = socket.recv_from(&mut buffer).await?;
@@ -202,7 +190,7 @@ fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box
 
 
 fn find_active_server() -> Result<Option<ServerInfo>, Box<dyn Error>> {
-    let file = File::open("DoSS.txt")?;
+    let file = File::open("/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt")?;
     let reader = BufReader::new(file);
 
     let active_servers: Vec<ServerInfo> = reader
