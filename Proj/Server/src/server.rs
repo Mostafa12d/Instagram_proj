@@ -46,49 +46,106 @@ impl ServerInfo {
 }
 
 // Append server information to a txt file
-fn get_server_info(filename: &str) -> Result<(), Box<dyn Error>> {
+fn get_server_info(filename: &str) -> Vec<String> {
 
     let file = File::open(filename).expect("no such file");
     let buf = BufReader::new(file);
     let local_addr_v: Vec<String> = buf.lines()
     .map(|l| l.expect("Could not parse line"))
     .collect();
+
+    
     for addr in &local_addr_v{
         println!("{}", addr);
     }
-
-    Ok(())
+    //return server addresses
+    local_addr_v
 }
 
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
-    //connect to client
+    //connect to client socket
     let client_port = local_addr.to_string()+":10011";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
 
-    //connect to server
+    //connect to server socket
     let server_port = local_addr.to_string()+":10012";
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
     // Print server information
     println!("This server is listening on: {}", local_addr);
+    //create a vector that holds the messages
+    //ERROR shared vector in an async function(explore threads later)
+    // let mut message_buffer = Vec::new();
+
+    //get the available servers
+    let mut server_addr_v = Vec::new();
+    server_addr_v = get_server_info("DoSS.txt");
+    for addr in &server_addr_v{
+        println!("{}", addr);
+    }
+    //Note: We would need to figure out a way to work around a server being down
+    //We could do this by removing the down server from the vector and when it
+    //comes back up it would be able to communicat with the other servers
+    //so we will be able to add it back once a message is received from a server that is not in the vector
 
     loop {
+        //receive message from client
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
         let message_client = std::str::from_utf8(&client_buffer[..len])?;
         println!("Received: {} from {}", message_client, client);
+
+        //add message to buffer
+        //ERROR shared vector in an async function(explore threads later)
+        // message_buffer.push(message_client);
+
+        //send the buffer size to other servers using the same port
         
+        //ERROR shared vector in an async function(explore threads later)
+        // let message_size = message_buffer.len();
+        // let message_size_bytes = message_size.to_string().as_bytes();
+        // for addr in &server_addr_v{
+        //     server_socket.send_to(message_size_bytes, &addr).await?;
+        // }
+
+        //receive the buffer size from other servers using the same port
         let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
+        // receive the buffer size from the server as
         let message_server = std::str::from_utf8(&server_buffer[..len])?;
         println!("Received: {} from {}", message_server, server);
+
+        let buf1_size: u8 = message_server.parse().unwrap();
+
+
+
+
+        
+        // add messages to a message buffer
+        // compare buffer sizes once it happens
+        //if your buffer is more than any of the other buffer, delete the last message
+        //if not continue with processing the buffer
+        //if(buf1 < buf2< buf3)
+
+        
+
+
 
         //// Draft Leader Election
         //check which server is free using some ifs
         //send token = ok to the server that has the least priority
 
     }
+
+
+
+
+
+
+
+
+
 
         // // Check the server status and respond or delegate the task
         // match server_info.status {
