@@ -25,19 +25,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //Function finds the ip of the running server
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     // Create a server
-    let local_addr = local_ip.to_string()+":"+port_num;
+    let local_addr = local_ip.to_string();//+":"+port_num;
     println!("{}", local_addr);
-
-    let server_info = ServerInfo {
-        ip: local_ip.to_string(), // Set the server's IP address
-        port: port_num.to_string(),  //the server's port
-        status: 1, // Set the server's status
-    };
-
-    // Append server information to a txt file
-    // append_server_info_to_file(&server_info)?;
     // Start the server
-    start_server(&server_info).await?;
+    start_server(&local_addr).await?;
 
     Ok(())
 }
@@ -70,45 +61,33 @@ fn get_server_info(filename: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // Start the server
-async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
-    let local_addr = format!("{}:{}", server_info.ip, server_info.port);
-    let client_socket = UdpSocket::bind(&local_addr).await?;
-
-    let server_socket = UdpSocket::bind(&local_addr).await?;
-
-
-
-    // 
-
+async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
+    //connect to client
+    let client_port = local_addr.to_string()+":10011";
+    let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
+
+    //connect to server
+    let server_port = local_addr.to_string()+":10012";
+    let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
-    
-
     // Print server information
-    println!("Server is running with the following info:");
-    println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
     println!("This server is listening on: {}", local_addr);
 
     loop {
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
-        let message = std::str::from_utf8(&client_buffer[..len])?;
-        println!("Received: {} from {}", message, client);
+        let message_client = std::str::from_utf8(&client_buffer[..len])?;
+        println!("Received: {} from {}", message_client, client);
+        
+        let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
+        let message_server = std::str::from_utf8(&server_buffer[..len])?;
+        println!("Received: {} from {}", message_server, server);
 
         //// Draft Leader Election
-        // // Receive from other servers their status aka priority.
-        // let (len1, server1) = socket.recv_from(&mut buffer1).await?;
-        // let message1 = std::str::from_utf8(&buffer1[..len1])?;
-
-        // let (len2, server2) = socket.recv_from(&mut buffer2).await?;
-        // let message2 = std::str::from_utf8(&buffer2[..len2])?;
-
         //check which server is free using some ifs
-
         //send token = ok to the server that has the least priority
-        println!("Received: {} from {}", message, client);
-        // println!("Received: {} from {}", message1, server1);
-        // println!("Received: {} from {}", message2, server2);
+
     }
 
         // // Check the server status and respond or delegate the task

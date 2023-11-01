@@ -22,12 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = args.get(1).expect("Argument 1 is listening address. Eg: 0.0.0.0:10001");
 
     // //Specify address from code
-    let local_addr = "172.29.255.134:10011"; 
+    let local_addr = "10.40.32.144:10011"; 
 
     //original
-    let remote_addr1 = "172.29.255.134:8092"; // IP address and port of the Server 1
-    let remote_addr2 = "172.29.255.134:8093"; // IP address and port of the Server 2
-    let remote_addr3 = "172.29.255.134:8094"; // IP address and port of the Server 3
+    let remote_addr1 = "10.40.32.144:10011"; // IP address and port of the Server 1
+    // let remote_addr2 = "172.29.255.134:8093"; // IP address and port of the Server 2
+    // let remote_addr3 = "172.29.255.134:8094"; // IP address and port of the Server 3
 
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
@@ -37,13 +37,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // socket.connect(local_addr).await?; // Connect to the server
     // socket.send(message_bytes).await?; // Send the message                
 
-    socket.send_to(message_bytes, local_addr).await?; // Send the message
+    socket.send_to(message_bytes, remote_addr1).await?; // Send the message
 
     // socket.send_to(message_bytes, remote_addr3).await?;
     // socket.send_to(message_bytes, remote_addr2).await?;
     // socket.send_to(message_bytes, remote_addr1).await?;
 
-    println!("Sent: {} to {}", message, local_addr);
+    println!("Sent: {} to {}", message, remote_addr1);
     
     // println!("Sent: {} to {}", message, remote_addr1);
     // println!("Sent: {} to {}", message, remote_addr2);
