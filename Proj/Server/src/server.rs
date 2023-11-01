@@ -82,7 +82,14 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     let local_addr = format!("{}:{}", server_info.ip, server_info.port);
     let socket = UdpSocket::bind(&local_addr).await?;
 
+
+    // 
+
     let mut buffer = [0; 1024];
+    let mut buffer1 = [0; 1024];
+    let mut buffer2 = [0; 1024];
+
+    
 
     // Print server information
     println!("Server is running with the following info:");
@@ -90,10 +97,28 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
     println!("This server is listening on: {}", local_addr);
 
     loop {
-        let (len, src) = socket.recv_from(&mut buffer).await?;
+        let (len, client) = socket.recv_from(&mut buffer).await?;
         let message = std::str::from_utf8(&buffer[..len])?;
+        // if (len)
+        // {
 
-        println!("Received: {} from {}", message, src);
+        // }
+
+        //// Draft Leader Election
+        // Receive from other servers their status aka priority.
+        let (len1, server1) = socket.recv_from(&mut buffer1).await?;
+        let message1 = std::str::from_utf8(&buffer1[..len1])?;
+
+        let (len2, server2) = socket.recv_from(&mut buffer2).await?;
+        let message2 = std::str::from_utf8(&buffer2[..len2])?;
+
+        //check which server is free using some ifs
+
+        //send token = ok to the server that has the least priority
+        println!("Received: {} from {}", message, client);
+        println!("Received: {} from {}", message1, server1);
+        println!("Received: {} from {}", message2, server2);
+
 
         // Check the server status and respond or delegate the task
         match server_info.status {
@@ -123,8 +148,8 @@ async fn start_server(server_info: &ServerInfo) -> Result<(), Box<dyn Error>> {
                 }
                 
                 let response = "Hello, client!";
-                let sent_len = socket.send_to(response.as_bytes(), &src).await?;
-                println!("Sent: {} bytes to {}", sent_len, src);
+                let sent_len = socket.send_to(response.as_bytes(), &client).await?;
+                println!("Sent: {} bytes to {}", sent_len, client);
 
                 // Set the status back to active
                 if server_info.status == 2 {
