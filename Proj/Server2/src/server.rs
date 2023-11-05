@@ -65,12 +65,12 @@ fn get_server_info(filename: &str) -> Vec<String> {
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
-    let client_port = local_addr.to_string()+":10018";
+    let client_port = local_addr.to_string()+":10020";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
 
     //connect to server socket
-    let server_port = local_addr.to_string()+":10010";
+    let server_port = local_addr.to_string()+":10012";
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
@@ -82,7 +82,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
     //get the available servers
     let mut server_addr_v = Vec::new();
-    server_addr_v = get_server_info("/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/Server/src/DoSS.txt");
+    server_addr_v = get_server_info("/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/Server2/src/DoSS.txt");
     for addr in &server_addr_v{
         println!("{}", addr);
     }
@@ -112,11 +112,11 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             server_socket.send_to(message_size_bytes, &addr).await?;
             println!("Sent: {} to {}", message_str, addr);
         }
+
         for addr in &server_addr_v{
             //receive the buffer size from other servers using the same port
             let a = addr;
             println!("Waiting for a reply...");
-
             let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
             // receive the buffer size from the server as
             let message_server = std::str::from_utf8(&server_buffer[..len])?;
