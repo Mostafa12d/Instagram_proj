@@ -18,10 +18,10 @@ struct ServerInfo {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    // Get Port from Command Line
-    let args: Vec<String> = std::env::args().collect();
-    let port_num = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
-    println!("{}", port_num);
+    // // Get Port from Command Line
+    // let args: Vec<String> = std::env::args().collect();
+    // let port_num = args.get(1).expect("Argument 1 is listening port. Eg: 8080");
+    // println!("{}", port_num);
     //Function finds the ip of the running server
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     // Create a server
@@ -55,9 +55,9 @@ fn get_server_info(filename: &str) -> Vec<String> {
     .collect();
 
     
-    for addr in &local_addr_v{
-        println!("{}", addr);
-    }
+    // for addr in &local_addr_v{
+    //     println!("{}", addr);
+    // }
     //return server addresses
     local_addr_v
 }
@@ -65,24 +65,24 @@ fn get_server_info(filename: &str) -> Vec<String> {
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
-    let client_port = local_addr.to_string()+":10011";
+    let client_port = local_addr.to_string()+":10019";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
 
     //connect to server socket
-    let server_port = local_addr.to_string()+":10012";
+    let server_port = local_addr.to_string()+":10013";
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
     // Print server information
-    println!("This server is listening on: {}", local_addr);
+    println!("This server is listening on: {}", server_port);
     //create a vector that holds the messages
     //ERROR shared vector in an async function(explore threads later)
-    // let mut message_buffer = Vec::new();
+    let mut message_buffer = Vec::new();
 
     //get the available servers
     let mut server_addr_v = Vec::new();
-    server_addr_v = get_server_info("DoSS.txt");
+    server_addr_v = get_server_info("/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/Server/src/DoSS.txt");
     for addr in &server_addr_v{
         println!("{}", addr);
     }
@@ -96,19 +96,22 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
         let message_client = std::str::from_utf8(&client_buffer[..len])?;
         println!("Received: {} from {}", message_client, client);
-
+        let temp_message_client = message_client.to_string();
         //add message to buffer
         //ERROR shared vector in an async function(explore threads later)
-        // message_buffer.push(message_client);
+        message_buffer.push(temp_message_client);
 
         //send the buffer size to other servers using the same port
         
         //ERROR shared vector in an async function(explore threads later)
         // let message_size = message_buffer.len();
-        // let message_size_bytes = message_size.to_string().as_bytes();
-        // for addr in &server_addr_v{
-        //     server_socket.send_to(message_size_bytes, &addr).await?;
-        // }
+        // let message_str = message_size.to_string();
+        let m = "Hello, yasta!";
+        let message_size_bytes = m.as_bytes();
+        for addr in &server_addr_v{
+            server_socket.send_to(message_size_bytes, &addr).await?;
+            println!("Sent: {} to {}", m, addr);
+        }
 
         //receive the buffer size from other servers using the same port
         let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
@@ -116,10 +119,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let message_server = std::str::from_utf8(&server_buffer[..len])?;
         println!("Received: {} from {}", message_server, server);
 
-        let buf1_size: u8 = message_server.parse().unwrap();
-
-
-
+        // let buf1_size: u8 = message_server.parse().unwrap();
 
         
         // add messages to a message buffer
@@ -129,73 +129,11 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         //if(buf1 < buf2< buf3)
 
         
-
-
-
         //// Draft Leader Election
         //check which server is free using some ifs
         //send token = ok to the server that has the least priority
 
     }
-
-
-
-
-
-
-
-
-
-
-        // // Check the server status and respond or delegate the task
-        // match server_info.status {
-        //     0 => {
-        //         // If status is 0 (inactive), delegate to another active server
-        //         let delegate_server = find_active_server(); // Implement your logic to find an active server
-        //         if let Ok(Some(delegate_server)) = delegate_server {
-        //             let delegate_addr = format!("{}:{}", delegate_server.ip, delegate_server.port);
-        //             let response = "Task delegated to another server.";
-        //             let _ = client_socket.send_to(response.as_bytes(), &delegate_addr).await;
-        //             println!("Task delegated to {}.", delegate_addr);
-        //         } else {
-        //             println!("No active server available to delegate the task.");
-        //         }
-        //     }
-        //     1 => {
-        //         // If status is 1 (active), respond to the client
-        //         // Set the status to busy
-        //         if server_info.status == 1 {
-        //             set_server_status(&server_info, 2)?;
-        //             println!("---------------------------------------------------");
-        //             println!("Server is busy.");
-        //             // Print server information
-        //             println!("Server is running with the following info:");
-        //             println!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status);
-        //             println!("---------------------------------------------------");
-        //         }
-                
-    //             let response = "Hello, client!";
-    //             let sent_len = client_socket.send_to(response.as_bytes(), &client).await?;
-    //             println!("Sent: {} bytes to {}", sent_len, client);
-
-    //             // Set the status back to active
-    //             if server_info.status == 2 {
-    //                 set_server_status(&server_info, 1)?;
-    //             }
-
-    //             println!("Server is active again.");
-    //         }
-
-    //         2 => {
-    //             // If status is 2 (busy), log that the server is busy
-    //             println!("Server is busy. No response sent.");
-    //         }
-    //         _ => {
-    //             // Handle other status values as needed
-    //             println!("Invalid server status. No response sent.");
-    //         }
-    //     }
-    // }
 
     Ok(())
 }
