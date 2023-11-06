@@ -3,4 +3,4 @@
 ## Distributed Systems Project 
 Image sharing application
 
-Next Deadline: Sunday, 29th of October. Progress meeting with El-Kadi 
+Next Deadline: Sunday, 13th of November. Progress meeting with El-Kadi 
