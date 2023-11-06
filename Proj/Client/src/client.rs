@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //let local_addr = "10.40.32.144:10011"; 
 
     //original
-    let remote_addr1 = "10.40.40.66:10010"; // IP address and port of the Server 1
+    let remote_addr1 = "172.20.10.4:10010"; // IP address and port of the Server 1
     let remote_addr2 = "172.20.10.4:10011"; // IP address and port of the Server 2
     let remote_addr3 = "172.20.10.4:10012"; // IP address and port of the Server 3
 
