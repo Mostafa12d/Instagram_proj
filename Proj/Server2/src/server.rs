@@ -1,18 +1,26 @@
 use tokio::net::UdpSocket;
+// use std::arch::aarch64::__breakpoint;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, Write};
 use std::error::Error;
 use std::string;
 use rand::seq::SliceRandom;
+use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
 // Struct to represent server information
-#[derive(Clone)] // Implement the Clone trait
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct ServerInfo {
-    ip: String,
-    port: String,
-    status: u8,
+    address: String,
+    size: u8,
+}
+
+
+fn generate_random_number(seed: u64, i: usize) -> u64 {
+    let mut rng = SmallRng::seed_from_u64(seed);
+    rng.gen::<u64>()%i as u64
 }
 
 #[tokio::main]
@@ -34,16 +42,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 // Implement the From_String trait for the ServerInfo struct
-impl ServerInfo {
-    fn from_string(s: &str) -> ServerInfo {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        let ip = parts[1].to_string();
-        let port = parts[3].parse().unwrap();
-        let status = parts[5].parse().unwrap();
+// impl ServerInfo {
+//     fn from_string(s: &str) -> ServerInfo {
+//         let parts: Vec<&str> = s.split_whitespace().collect();
+//         let ip = parts[1].to_string();
+//         let port = parts[3].parse().unwrap();
+//         let size = parts[5].parse().unwrap();
 
-        ServerInfo { ip, port, status }
-    }
-}
+//         ServerInfo {address, size }
+//     }
+// }
 
 // Append server information to a txt file
 fn get_server_info(filename: &str) -> Vec<String> {
@@ -68,19 +76,21 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let client_port = local_addr.to_string()+":10020";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
-
+    println!("The clients' port is listening on: {}", client_port);
     //connect to server socket
-    let server_port = local_addr.to_string()+":10012";
+    let server_port_num = ":10012";
+    let server_port = local_addr.to_string()+server_port_num;
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
     // Print server information
-    println!("This server is listening on: {}", server_port);
+    println!("The servers' port is listening on: {}", server_port);
     //create a vector that holds the messages
     //ERROR shared vector in an async function(explore threads later)
     let mut message_buffer = Vec::new();
 
     //get the available servers
+    let mut serv_struct_vec = Vec::new();
     let mut server_addr_v = Vec::new();
     server_addr_v = get_server_info("/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/Server2/src/DoSS.txt");
     for addr in &server_addr_v{
@@ -112,16 +122,98 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             server_socket.send_to(message_size_bytes, &addr).await?;
             println!("Sent: {} to {}", message_str, addr);
         }
+        // add my own buffer size to the struct vector
+        //value moved here in previous iteration of the loop
+        let my_server_struct = ServerInfo {
+            address: server_port.clone(),
+            size: message_str.parse().unwrap(),
+        };
+        serv_struct_vec.push(my_server_struct); 
+
 
         for addr in &server_addr_v{
             //receive the buffer size from other servers using the same port
             let a = addr;
             println!("Waiting for a reply...");
+
             let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
             // receive the buffer size from the server as
             let message_server = std::str::from_utf8(&server_buffer[..len])?;
             println!("Received: {} from {}", message_server, server);
+            //struct to add to the vector so that we can sort it
+            //should be moved outside the loop
+            let servers_struct = ServerInfo {
+                address: server.to_string(),
+                size: message_server.parse().unwrap(),
+            };
+            //add the struct to the vector
+            serv_struct_vec.push(servers_struct);
+
+       }
+
+       //to update a certain entry in the struct
+       //if let Some(index) = people.iter().position(|person| person.name == name_to_update) {
+        // Update the age field for the matching person
+        // people[index].age = new_age;
+    // }
+       serv_struct_vec.sort();
+       //check if the lowest size is my size and the tie case
+       let mut i = 0;
+       if serv_struct_vec[0].size as usize == message_size{
+            while serv_struct_vec[i].size == serv_struct_vec[0].size{
+                if i < serv_struct_vec.len()-1{
+                    i = i+1;
+                }
         }
+            let server_seed = 42; // Replace this with the synchronized seed for each server
+            let random_number = generate_random_number(server_seed, i);
+            let chosen_server = serv_struct_vec[random_number as usize].address.clone();
+            if chosen_server == server_port{
+                //execute
+                println!("I am the chosen server");
+
+                let message3 = "Hello, I am leader how is and your mother!";
+
+                let message_bytes3 = message3.as_bytes(); 
+                //send the message to the client
+                client_socket.send_to(message_bytes3, &client).await?;
+                println!("Sent: {} to {}",  message3, client);
+            }
+            else{
+                //send the message to the chosen server
+                server_socket.send_to(message_size_bytes, &chosen_server).await?;
+                println!("Sent: {} to {}", message_str, chosen_server);
+            }
+       }
+
+
+    //    if message_size > serv_struct_vec[0]{
+    //        //execute
+    //    }
+    //    else if message_size == serv_struct_vec[0]{
+           
+    //    }
+
+        // //let least_busy = std::cmp::min(server_addr_v[0], std::cmp::min(b, c));
+        // if message_size < serv_struct_vec[0] && message_size < serv_struct_vec[1]{
+        //     //execute
+        // }
+        // else if message_size == serv_struct_vec[0] && message_size == serv_struct_vec[1]{
+            
+        // }
+        // else if message_size == serv_struct_vec[0]{
+
+        // }
+        // else if message_size == serv_struct_vec[1]{
+            
+        // }
+
+
+        // else {
+            
+        // }
+
+
         // let buf1_size: u8 = message_server.parse().unwrap();
 
         
@@ -142,72 +234,72 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // !!!!!!!!! DOES NOT WORK PROPERLY NEEDS FIXING!!!!!!!!!
-fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box<dyn Error>> {
-    // let file_contents = {
-    //     let file_contents = std::fs::read_to_string("DoSS.txt")?;
-    //     file_contents
-    // };
+// fn set_server_status(server_info: &ServerInfo, new_status: u8) -> Result<(), Box<dyn Error>> {
+//     // let file_contents = {
+//     //     let file_contents = std::fs::read_to_string("DoSS.txt")?;
+//     //     file_contents
+//     // };
 
-    // let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
-    // let modified_contents = file_contents.replace(&new_server_info, "");
+//     // let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
+//     // let modified_contents = file_contents.replace(&new_server_info, "");
 
-    // // let mut file = File::create("DoSS.txt")?;
-    // // file.write_all(modified_contents.as_bytes())?;
+//     // // let mut file = File::create("DoSS.txt")?;
+//     // // file.write_all(modified_contents.as_bytes())?;
 
-    // Ok(())
+//     // Ok(())
     
-    let filename = "DoSS.txt";
-    let _file = File::open(filename).expect("no such file");
-    // let buf = BufReader::new(file);
-    // let buf = BufReader::new(file);
-    // let file_contents: Vec<String> = buf.lines()
-    // .map(|l| l.expect("Could not parse line"))
-    // .collect();
+//     let filename = "DoSS.txt";
+//     let _file = File::open(filename).expect("no such file");
+//     // let buf = BufReader::new(file);
+//     // let buf = BufReader::new(file);
+//     // let file_contents: Vec<String> = buf.lines()
+//     // .map(|l| l.expect("Could not parse line"))
+//     // .collect();
 
-    let file_contents = std::fs::read_to_string(filename)?;
+//     let file_contents = std::fs::read_to_string(filename)?;
 
 
 
-    let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
+//     let new_server_info = format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, new_status);
     
-    let modified_contents = file_contents.replace(
-        &format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.status),
-        &new_server_info,
-    );
+//     let modified_contents = file_contents.replace(
+//         &format!("IP: {}, Port: {}, Status: {}", server_info.ip, server_info.port, server_info.size),
+//         &new_server_info,
+//     );
 
-    let mut file = File::create("DoSS.txt")?;
-    file.write(modified_contents.as_bytes()).expect("failed writing");
+//     let mut file = File::create("DoSS.txt")?;
+//     file.write(modified_contents.as_bytes()).expect("failed writing");
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 
-fn find_active_server() -> Result<Option<ServerInfo>, Box<dyn Error>> {
-    let file = File::open("/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt")?;
-    let reader = BufReader::new(file);
+// fn find_active_server() -> Result<Option<ServerInfo>, Box<dyn Error>> {
+//     let file = File::open("/home/tamer/DS/Instagram_proj/Proj/Server/src/DoSS.txt")?;
+//     let reader = BufReader::new(file);
 
-    let active_servers: Vec<ServerInfo> = reader
-        .lines()
-        .map(|line| line.expect("Could not parse line"))
-        .filter_map(|line| {
-            let server_info = ServerInfo::from_string(&line);
-            if server_info.status == 1 {
-                Some(server_info)
-            } else {
-                None
-            }
-        })
-        .collect();
+//     let active_servers: Vec<ServerInfo> = reader
+//         .lines()
+//         .map(|line| line.expect("Could not parse line"))
+//         .filter_map(|line| {
+//             let server_info = ServerInfo::from_string(&line);
+//             if server_info.size == 1 {
+//                 Some(server_info)
+//             } else {
+//                 None
+//             }
+//         })
+//         .collect();
 
-    if active_servers.is_empty() {
-        Ok(None)
-    } else {
-        let mut rng = rand::thread_rng();
-        if let Some(chosen_server) = active_servers.choose(&mut rng) {
-            Ok(Some(chosen_server.clone()))
-        } else {
-            Err("Failed to select a random server".into())
-        }
-    }
-}
+//     if active_servers.is_empty() {
+//         Ok(None)
+//     } else {
+//         let mut rng = rand::thread_rng();
+//         if let Some(chosen_server) = active_servers.choose(&mut rng) {
+//             Ok(Some(chosen_server.clone()))
+//         } else {
+//             Err("Failed to select a random server".into())
+//         }
+//     }
+// }
 
