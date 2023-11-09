@@ -133,10 +133,18 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
 
     loop {
+        let mut received_data = Vec::new();
+        loop{
         //receive message from client
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
-        let message_client = std::str::from_utf8(&client_buffer[..len])?;
-        println!("Received buffer size of: {} from {}", message_client, client);
+        if len == 0 {
+            break;
+        }
+        received_data.extend_from_slice(&client_buffer[0..len]);
+        println!("Received string: {}", client);
+    }
+        let message_client = std::str::from_utf8(&received_data).expect("failed to convert to string");
+
         println!("------------------------");
 
         let temp_message_client = message_client.to_string();
@@ -209,8 +217,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
                 let message_bytes3 = message3.as_bytes(); 
                 //send the message to the client
-                client_socket.send_to(message_bytes3, &client).await?;
-                println!("Sent: {} to {}",  message3, client);
+                client_socket.send_to(message_bytes3, &client_port).await?;
+                println!("Sent: {} to {}",  message3, client_port);
             }
             else {
                 message_buffer.pop();

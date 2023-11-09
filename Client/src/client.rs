@@ -31,11 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //let local_addr = "10.40.32.144:10011"; 
 
     //original
-    let remote_addr1 = "172.20.10.4:10018"; // IP address and port of the Server 1
+    let remote_addr1 = "10.40.38.59:10018"; // IP address and port of the Server 1
     let remote_addr2 = "172.20.10.4:10019"; // IP address and port of the Server 2
     let remote_addr3 = "172.20.10.4:10020"; // IP address and port of the Server 3
 
-    
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     let message1 = "Hello, Server18!";
     let message2 = "Hello, Server19!";
@@ -45,14 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message_bytes2 = message2.as_bytes();  
     let message_bytes3 = message3.as_bytes();  
 
-
     socket.send_to(message_bytes1, remote_addr1).await?; // Send the message
-
     socket.send_to(message_bytes2, remote_addr2).await?;
     socket.send_to(message_bytes3, remote_addr3).await?;
-    // socket.send_to(message_bytes, remote_addr1).await?;
-
-    // println!("Sent: {} to {}", message, remote_addr1);
     
     println!("Sent: {} to {}", message1, remote_addr1);
     println!("Sent: {} to {}", message2, remote_addr2);
@@ -61,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //Receive Reply from server
     let mut buffer = [0; 1024]; // Buffer to receive the message
 
-    let image_path = "./src/tamer.jpeg";
+    let image_path = "./src/bambo.jpeg";
     let img = image::open(image_path).unwrap();
 
     // Convert the image to a base64-encoded string
