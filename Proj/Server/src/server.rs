@@ -5,6 +5,7 @@ use std::io::{BufReader, BufRead, Write};
 use std::error::Error;
 use std::string;
 use rand::seq::SliceRandom;
+use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
  // to identify the ip address of the machine this code is running on
@@ -70,6 +71,16 @@ fn get_server_info(filename: &str) -> Vec<String> {
     local_addr_v
 }
 
+fn compare_servers(a: &ServerInfo, b: &ServerInfo) -> Ordering {
+    let a_ip = a.address.split(':').next().unwrap();
+    let a_port = a.address.split(':').last().unwrap().parse::<u16>().unwrap();
+    let b_ip = b.address.split(':').next().unwrap();
+    let b_port = b.address.split(':').last().unwrap().parse::<u16>().unwrap();
+
+    a.size.cmp(&b.size)
+        .then(a_ip.cmp(&b_ip))
+        .then(a_port.cmp(&b_port))
+}
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
@@ -120,6 +131,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //comes back up it would be able to communicat with the other servers
     //so we will be able to add it back once a message is received from a server that is not in the vector
 
+
     loop {
         //receive message from client
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
@@ -168,29 +180,26 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             serv.size = message_server.parse().unwrap();
 
        }
-
-       //to update a certain entry in the struct
-       //if let Some(index) = people.iter().position(|person| person.name == name_to_update) {
-        // Update the age field for the matching person
-        // people[index].age = new_age;
-    // }
-    //print the addresses of the
     
-    serv_struct_vec.sort();
-    
+    serv_struct_vec.sort_by(compare_servers);
+    // serv_struct_vec.sort_by_key(|ser| ser.size);
+    println!("The sorted vector is: ");
     for serv in &serv_struct_vec{
         println!("{} {}", serv.address, serv.size);
     }
-       //check if the lowest size is my size and the tie case
-       let mut i = 0;
-       if serv_struct_vec[0].size as usize == message_size{
-            while serv_struct_vec[i].size == serv_struct_vec[0].size{
-                if i < serv_struct_vec.len()-1{
-                    i = i+1;
-                }
-        }
+    //    //check if the lowest size is my size and the tie case
+    let mut i = 0;
+    if serv_struct_vec[0].size as usize == message_size{
+        for serv in &serv_struct_vec{
+             if serv.size == serv_struct_vec[0].size{
+                 i = i+1;
+             }
+            }
+            println!("{}", i);
             let server_seed = 42; // Replace this with the synchronized seed for each server
             let random_number = generate_random_number(server_seed, i);
+            println!("random number {}", random_number);
+
             let chosen_server = serv_struct_vec[random_number as usize].address.clone();
             if chosen_server == server_port{
                 //execute
@@ -203,43 +212,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 client_socket.send_to(message_bytes3, &client).await?;
                 println!("Sent: {} to {}",  message3, client);
             }
-            else{
-                //send the message to the chosen server
-                println!("I am {} not the chosen server ", chosen_server);
-                server_socket.send_to(message_size_bytes, &chosen_server).await?;
-                println!("Sent: {} to {}", message_str, chosen_server);
-            }
-       }
-
-
-    //    if message_size > serv_struct_vec[0]{
-    //        //execute
-    //    }
-    //    else if message_size == serv_struct_vec[0]{
-           
-    //    }
-
-        // //let least_busy = std::cmp::min(server_addr_v[0], std::cmp::min(b, c));
-        // if message_size < serv_struct_vec[0] && message_size < serv_struct_vec[1]{
-        //     //execute
+        }
+        // else{
+        //     //send the message to the chosen server
+        //     println!("I am {} not the chosen server ", chosen_server);
+        //     server_socket.send_to(message_size_bytes, &chosen_server).await?;
+        //     println!("Sent: {} to {}", message_str, chosen_server);
         // }
-        // else if message_size == serv_struct_vec[0] && message_size == serv_struct_vec[1]{
-            
-        // }
-        // else if message_size == serv_struct_vec[0]{
-
-        // }
-        // else if message_size == serv_struct_vec[1]{
-            
-        // }
-
-
-        // else {
-            
-        // }
-
-
-        // let buf1_size: u8 = message_server.parse().unwrap();
 
         
         // add messages to a message buffer
