@@ -25,9 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //let local_addr = "10.40.32.144:10011"; 
 
     //original
-    let remote_addr1 = "192.168.100.74:10018"; // IP address and port of the Server 1
-    let remote_addr2 = "192.168.100.74:10019"; // IP address and port of the Server 2
-    let remote_addr3 = "192.168.100.74:10020"; // IP address and port of the Server 3
+    let remote_addr1 = "172.20.10.4:10018"; // IP address and port of the Server 1
+    let remote_addr2 = "172.20.10.4:10019"; // IP address and port of the Server 2
+    let remote_addr3 = "172.20.10.4:10020"; // IP address and port of the Server 3
 
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;

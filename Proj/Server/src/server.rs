@@ -92,7 +92,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //get the available servers
     let mut serv_struct_vec = Vec::new();
     let mut server_addr_v = Vec::new();
-    server_addr_v = get_server_info("/Users/mostafalotfy/Documents/University/Fall 2023/Distributed Systems/Instagram_proj/Proj/Server/src/DoSS.txt");
+    server_addr_v = get_server_info("./src/DoSS.txt");
     for addr in &server_addr_v{
         println!("{}", addr);
     }
