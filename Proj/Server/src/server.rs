@@ -77,25 +77,44 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 1024];
     println!("The clients' port is listening on: {}", client_port);
+    println!("------------------------");
     //connect to server socket
     let server_port_num = ":10010";
     let server_port = local_addr.to_string()+server_port_num;
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
 
-    // Print server information
-    println!("The servers' port is listening on: {}", server_port);
-    //create a vector that holds the messages
-    //ERROR shared vector in an async function(explore threads later)
-    let mut message_buffer = Vec::new();
-
     //get the available servers
     let mut serv_struct_vec = Vec::new();
     let mut server_addr_v = Vec::new();
     server_addr_v = get_server_info("./src/DoSS.txt");
+
+    //add my server to the vector of structs
+    let my_server_struct = ServerInfo {
+        address: server_port.clone(),
+        size: 0,
+    };
+    serv_struct_vec.push(my_server_struct); 
+    //add the other servers read from DoSS to the vector of structs
     for addr in &server_addr_v{
-        println!("{}", addr);
+        let servers_struct = ServerInfo {
+            address: addr.to_string(),
+            size: 0,
+        };
+        serv_struct_vec.push(servers_struct); 
     }
+
+
+
+    
+    // Print server information
+    println!("My server's port is listening on: {}", server_port);
+    println!("------------------------");
+    //create a vector that holds the messages
+    //ERROR shared vector in an async function(explore threads later)
+    let mut message_buffer = Vec::new();
+
+
     //Note: We would need to figure out a way to work around a server being down
     //We could do this by removing the down server from the vector and when it
     //comes back up it would be able to communicat with the other servers
@@ -105,51 +124,48 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         //receive message from client
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
         let message_client = std::str::from_utf8(&client_buffer[..len])?;
-        println!("Received: {} from {}", message_client, client);
+        println!("Received buffer size of: {} from {}", message_client, client);
+        println!("------------------------");
+
         let temp_message_client = message_client.to_string();
         //add message to buffer
         //ERROR shared vector in an async function(explore threads later)
         message_buffer.push(temp_message_client);
 
         //send the buffer size to other servers using the same port
-        
-        //ERROR shared vector in an async function(explore threads later)
         let message_size = message_buffer.len();
+
+        let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
+        my_serv.size = message_size as u8;
+        
         let message_str = message_size.to_string();
         // let m = "Hello, yasta!";
         let message_size_bytes = message_str.as_bytes();
         for addr in &server_addr_v{
             server_socket.send_to(message_size_bytes, &addr).await?;
-            println!("Sent: {} to {}", message_str, addr);
+            println!("Sent my buffer size of: {} to server {}", message_str, addr);
         }
+        println!("------------------------");
+
         // add my own buffer size to the struct vector
         //value moved here in previous iteration of the loop
-        //CHECK THIS
-        let my_server_struct = ServerInfo {
-            address: server_port.clone(),
-            size: message_str.parse().unwrap(),
-        };
-        serv_struct_vec.push(my_server_struct); 
-
 
         for addr in &server_addr_v{
             //receive the buffer size from other servers using the same port
             let a = addr;
-            println!("Waiting for a reply...");
+            println!("Waiting for a other server's message...");
 
             let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
             // receive the buffer size from the server as
             let message_server = std::str::from_utf8(&server_buffer[..len])?;
-            println!("Received: {} from {}", message_server, server);
+            println!("Received the buffer size of: {} from server {}", message_server, server);
             //struct to add to the vector so that we can sort it
             //should be moved outside the loop
             //CHECK THIS
-            let servers_struct = ServerInfo {
-                address: server.to_string(),
-                size: message_server.parse().unwrap(),
-            };
-            //add the struct to the vector
-            serv_struct_vec.push(servers_struct);
+
+            println!("------------------------");
+            let serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server.to_string()).unwrap();
+            serv.size = message_server.parse().unwrap();
 
        }
 
@@ -189,6 +205,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             }
             else{
                 //send the message to the chosen server
+                println!("I am {} not the chosen server ", chosen_server);
                 server_socket.send_to(message_size_bytes, &chosen_server).await?;
                 println!("Sent: {} to {}", message_str, chosen_server);
             }
