@@ -205,20 +205,20 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 //execute
                 println!("I am {} the chosen server ", chosen_server);
 
-                let message3 = "Hello, I am leader how is and your mother!";
+                let message3 = "Hello, I am the leader, aka, your mother!";
 
                 let message_bytes3 = message3.as_bytes(); 
                 //send the message to the client
                 client_socket.send_to(message_bytes3, &client).await?;
                 println!("Sent: {} to {}",  message3, client);
             }
+            else {
+                message_buffer.pop();
+            }
         }
-        // else{
-        //     //send the message to the chosen server
-        //     println!("I am {} not the chosen server ", chosen_server);
-        //     server_socket.send_to(message_size_bytes, &chosen_server).await?;
-        //     println!("Sent: {} to {}", message_str, chosen_server);
-        // }
+        else {
+            message_buffer.pop();
+        }
 
         
         // add messages to a message buffer

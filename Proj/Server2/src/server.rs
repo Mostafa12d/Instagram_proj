@@ -219,14 +219,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 client_socket.send_to(message_bytes3, &client).await?;
                 println!("Sent: {} to {}",  message3, client);
             }
+            else {
+                message_buffer.pop();
+            }
         }
-        // else{
-        //     //send the message to the chosen server
-        //     println!("I am {} not the chosen server ", chosen_server);
-        //     server_socket.send_to(message_size_bytes, &chosen_server).await?;
-        //     println!("Sent: {} to {}", message_str, chosen_server);
-        // }
-
+        else {
+            message_buffer.pop();
+        }
         
         // add messages to a message buffer
         // compare buffer sizes once it happens
