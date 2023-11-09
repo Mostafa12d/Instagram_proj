@@ -1,0 +1,16 @@
+[package]
+name = "Server"
+version = "0.2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+local-ip-address = "0.5.6"
+tokio = { version = "1", features = ["full"] }
+rand = {version = "0.8", features = ["small_rng"]}
+
+[[bin]]
+name = "server"  # This is the name of the binary
+path = "src/server.rs"  # This is the path to your source code file
+
