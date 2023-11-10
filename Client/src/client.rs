@@ -9,7 +9,7 @@ use std::io::Read;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //original
-    let remote_addr1 = "10.40.38.59:10018"; // IP address and port of the Server 1
+    let remote_addr1 = "192.168.100.74:10014"; // IP address and port of the Server 1
     let remote_addr2 = "172.20.10.4:10019"; // IP address and port of the Server 2
     let remote_addr3 = "172.20.10.4:10020"; // IP address and port of the Server 3
 

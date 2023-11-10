@@ -68,13 +68,13 @@ fn compare_servers(a: &ServerInfo, b: &ServerInfo) -> Ordering {
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
-    let client_port = local_addr.to_string()+":10018";
+    let client_port = local_addr.to_string()+":10014";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 4096];
     println!("The clients' port is listening on: {}", client_port);
     println!("------------------------");
     //connect to server socket
-    let server_port_num = ":10010";
+    let server_port_num = ":10045";
     let server_port = local_addr.to_string()+server_port_num;
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
@@ -137,19 +137,19 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let mut image_num:u32 = 0;
     loop {
         // let mut received_data = Vec::new();
-        let mut image_string = image_num.to_string();
-        let mut image_name = "img_rcv".to_string() + &image_string + ".jpeg";
+        let image_string = image_num.to_string();
+        let image_name = "img_rcv".to_string() + &image_string + ".jpeg";
         let mut file = File::create(image_name)?;
         let mut num_requests = 0;
         loop{
-        //receive message from client
-        let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
-        println!("Received {} bytes from {}", len, client);
-        file.write_all(&client_buffer[..len])?;
-        println!("Received string: {}", client);
-        // breah after the last packet
-        if len != 4096 {
-            break;
+            //receive message from client
+            let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
+            println!("Received {} bytes from {}", len, client);
+            file.write_all(&client_buffer[..len])?;
+            // println!("Received string: {}", client);
+            // breah after the last packet
+            if len != 4096 && len > 16 {
+                break;
         }
         }
         image_num = image_num + 1;
