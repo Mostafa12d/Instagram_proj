@@ -18,11 +18,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message2 = "Hello, Server19!";
     let message3 = "Hello, Server20!";
 
-    let message_bytes1 = message1.as_bytes();  
+    // let message_bytes1 = message1.as_bytes();  
     let message_bytes2 = message2.as_bytes();  
     let message_bytes3 = message3.as_bytes();  
 
-    socket.send_to(message_bytes1, remote_addr1).await?; // Send the message
+    // socket.send_to(message_bytes1, remote_addr1).await?; // Send the message
     socket.send_to(message_bytes2, remote_addr2).await?;
     socket.send_to(message_bytes3, remote_addr3).await?;
     
