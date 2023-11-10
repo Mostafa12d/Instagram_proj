@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::io::Cursor;
 use std::io::Read;
+use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for chunk in buffer.chunks(4096) {
         //Receive Reply from server
         socket.send_to(chunk, remote_addr1).await?;
+        sleep(Duration::from_secs(1)).await;
     }
 
 
