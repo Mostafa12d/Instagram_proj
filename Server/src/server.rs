@@ -42,18 +42,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// Implement the From_String trait for the ServerInfo struct
-// impl ServerInfo {
-//     fn from_string(s: &str) -> ServerInfo {
-//         let parts: Vec<&str> = s.split_whitespace().collect();
-//         let ip = parts[1].to_string();
-//         let port = parts[3].parse().unwrap();
-//         let size = parts[5].parse().unwrap();
-
-//         ServerInfo {address, size }
-//     }
-// }
-
 // Append server information to a txt file
 fn get_server_info(filename: &str) -> Vec<String> {
 
@@ -63,10 +51,6 @@ fn get_server_info(filename: &str) -> Vec<String> {
     .map(|l| l.expect("Could not parse line"))
     .collect();
 
-    
-    // for addr in &local_addr_v{
-    //     println!("{}", addr);
-    // }
     //return server addresses
     local_addr_v
 }
@@ -86,7 +70,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
     let client_port = local_addr.to_string()+":10018";
     let client_socket = UdpSocket::bind(&client_port).await?;
-    let mut client_buffer = [0; 1024];
+    let mut client_buffer = [0; 4096];
     println!("The clients' port is listening on: {}", client_port);
     println!("------------------------");
     //connect to server socket
@@ -131,20 +115,47 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //comes back up it would be able to communicat with the other servers
     //so we will be able to add it back once a message is received from a server that is not in the vector
 
-
+    
+    // fn main() -> std::io::Result<()> {
+    //     let socket = UdpSocket::bind("127.0.0.1:34254")?;
+    //     let mut file = File::create("reconstructed_image.jpeg")?;
+    //     let mut buffer = [0; 65000]; // Adjust the buffer size as needed
+    
+    //     loop {
+    //         let (number_of_bytes, src_addr) = socket.recv_from(&mut buffer)?;
+    //         println!("Received {} bytes from {}", number_of_bytes, src_addr);
+    
+    //         // Write the received chunk to the file
+    //         file.write_all(&buffer[..number_of_bytes])?;
+    
+    //         // Break the loop if this is the last chunk
+    //         // This condition depends on how you decide to signal the end of transmission
+    //     }
+    
+    //     Ok(())
+    // }
+    let mut image_num:u32 = 0;
     loop {
-        let mut received_data = Vec::new();
+        // let mut received_data = Vec::new();
+        let mut image_string = image_num.to_string();
+        let mut image_name = "img_rcv".to_string() + &image_string + ".jpeg";
+        let mut file = File::create(image_name)?;
+        let mut num_requests = 0;
         loop{
         //receive message from client
         let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
-        if len == 0 {
+        println!("Received {} bytes from {}", len, client);
+        file.write_all(&client_buffer[..len])?;
+        println!("Received string: {}", client);
+        // breah after the last packet
+        if len != 4096 {
             break;
         }
-        received_data.extend_from_slice(&client_buffer[0..len]);
-        println!("Received string: {}", client);
-    }
-        let message_client = std::str::from_utf8(&received_data).expect("failed to convert to string");
-
+        }
+        image_num = image_num + 1;
+        //fix this part of the code 
+        num_requests = num_requests + 1;
+        let message_client = num_requests;
         println!("------------------------");
 
         let temp_message_client = message_client.to_string();
