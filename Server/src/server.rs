@@ -4,11 +4,12 @@ use core::num;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, Write};
 use std::error::Error;
-use std::string;
+use std::{string, result};
 use rand::seq::SliceRandom;
 use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use tokio::time::{self, Duration};
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
@@ -16,7 +17,8 @@ use local_ip_address::local_ip;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct ServerInfo {
     address: String,
-    size: u8,
+    size: u32,
+    status: u8,
 }
 
 
@@ -89,6 +91,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let my_server_struct = ServerInfo {
         address: server_port.clone(),
         size: 0,
+        status: 1,
     };
     serv_struct_vec.push(my_server_struct); 
     //add the other servers read from DoSS to the vector of structs
@@ -96,6 +99,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let servers_struct = ServerInfo {
             address: addr.to_string(),
             size: 0,
+            status: 1,
         };
         serv_struct_vec.push(servers_struct); 
     }
@@ -103,12 +107,6 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     // Print server information
     println!("My server's port is listening on: {}", server_port);
     println!("------------------------");
-
-    //Note: We would need to figure out a way to work around a server being down
-    //We could do this by removing the down server from the vector and when it
-    //comes back up it would be able to communicat with the other servers
-    //so we will be able to add it back once a message is received from a server that is not in the vector
-
 
     //every server is going to receive the image from the client and then we will do leader election
     //to decide on which server is going to process the image.
@@ -137,7 +135,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         println!("------------------------");
 
         let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
-        my_serv.size = num_requests as u8;
+        my_serv.size = num_requests as u32;
         
         let message_str = num_requests.to_string();
         // let m = "Hello, yasta!";
@@ -147,36 +145,38 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             println!("Sent my buffer size of: {} to server {}", message_str, addr);
         }
         println!("------------------------");
-
-        // add my own buffer size to the struct vector
-        //value moved here in previous iteration of the loop
-
-        for addr in &server_addr_v{
-            //receive the buffer size from other servers using the same port
-            let a = addr;
-            println!("Waiting for a other server's message...");
-
-            let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
-            // receive the buffer size from the server as
-            let message_server = std::str::from_utf8(&server_buffer[..len])?;
-            println!("Received the buffer size of: {} from server {}", message_server, server);
-            //struct to add to the vector so that we can sort it
-            //should be moved outside the loop
-            //CHECK THIS
-
-            println!("------------------------");
-            let serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server.to_string()).unwrap();
-            serv.size = message_server.parse().unwrap();
-
-       }
+        //vector to add all the servers that sent messages
+        let mut received_servers = Vec::new();
+        for saddr in &server_addr_v{
+            //if the server is not responding for 0.5 seconds, then we will assume that it is down
+            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
+                Ok(Ok((len, server))) => {
+                    let message_server = std::str::from_utf8(&server_buffer[..len])?;
+                    println!("Received the buffer size of: {} from server {}", message_server, server);
+                    let serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server.to_string()).unwrap();
+                    serv.size = message_server.parse().unwrap();
+                    //add received server to the vector
+                    received_servers.push(server.to_string());
+                }
+                Ok(Err(_)) | Err(_) => {
+                    eprintln!("Timeout reached while waiting for data");
+                }
+        }
+        }
+        //check if there are servers that did not send a message
+        let diff: Vec<_> = server_addr_v.iter().filter(|&item| !received_servers.contains(item)).cloned().collect();
+        for addr in diff{
+            let temp_serv = serv_struct_vec.iter_mut().find(|serv| serv.address ==  addr).unwrap();
+            //change their size to 255 which means unavailable
+            temp_serv.size = 9999;
+        }
     
     serv_struct_vec.sort_by(compare_servers);
-    // serv_struct_vec.sort_by_key(|ser| ser.size);
     println!("The sorted vector before election is: ");
     for serv in &serv_struct_vec{
         println!("{} {}", serv.address, serv.size);
     }
-    //    //check if the lowest size is my size and the tie case
+    //check if the lowest size is my size and the tie case
     let mut i = 0;
     if serv_struct_vec[0].size as usize == num_requests as usize{
         for serv in &serv_struct_vec{
@@ -199,7 +199,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 let message_bytes3 = message3.as_bytes(); 
                 //send the message to the client
                 // client_socket.send_to(message_bytes3, &client_port).await?;
-                // println!("Sent: {} to {}",  message3, client_port);
+                //println!("Sent: {} to {}",  message3, client_port);
             }
             else {
             num_requests = num_requests - 1;

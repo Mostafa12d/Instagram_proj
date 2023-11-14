@@ -8,6 +8,7 @@ use std::string;
 use rand::seq::SliceRandom;
 use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
+use tokio::time::{self, Duration};
 use rand::rngs::SmallRng;
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
@@ -16,7 +17,7 @@ use local_ip_address::local_ip;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct ServerInfo {
     address: String,
-    size: u8,
+    size: u32,
 }
 
 
@@ -104,11 +105,6 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     println!("My server's port is listening on: {}", server_port);
     println!("------------------------");
 
-    //Note: We would need to figure out a way to work around a server being down
-    //We could do this by removing the down server from the vector and when it
-    //comes back up it would be able to communicat with the other servers
-    //so we will be able to add it back once a message is received from a server that is not in the vector
-
     let mut image_num:u32 = 0;
     let mut num_requests = 0;
     loop {
@@ -124,7 +120,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             println!("Received {} bytes from {}", len, client);
             file.write_all(&client_buffer[..len])?;
             // println!("Received string: {}", client);
-            // breah after the last packet
+            // break after the last packet
             if len != 4096 {
                 break;
         }
@@ -136,7 +132,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         println!("------------------------");
 
         let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
-        my_serv.size = num_requests as u8;
+        my_serv.size = num_requests as u32;
         
         let message_str = num_requests.to_string();
         // let m = "Hello, yasta!";
@@ -146,28 +142,26 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             println!("Sent my buffer size of: {} to server {}", message_str, addr);
         }
         println!("------------------------");
-
-        // add my own buffer size to the struct vector
-        //value moved here in previous iteration of the loop
-
-        for addr in &server_addr_v{
-            //receive the buffer size from other servers using the same port
-            let a = addr;
-            println!("Waiting for a other server's message...");
-
-            let (len, server) = server_socket.recv_from(&mut server_buffer).await?;
-            // receive the buffer size from the server as
-            let message_server = std::str::from_utf8(&server_buffer[..len])?;
-            println!("Received the buffer size of: {} from server {}", message_server, server);
-            //struct to add to the vector so that we can sort it
-            //should be moved outside the loop
-            //CHECK THIS
-
-            println!("------------------------");
-            let serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server.to_string()).unwrap();
-            serv.size = message_server.parse().unwrap();
-
-       }
+        let mut received_servers = Vec::new();
+        for saddr in &server_addr_v{
+            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
+                Ok(Ok((len, server))) => {
+                    let message_server = std::str::from_utf8(&server_buffer[..len])?;
+                    println!("Received the buffer size of: {} from server {}", message_server, server);
+                    let serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server.to_string()).unwrap();
+                    serv.size = message_server.parse().unwrap();
+                    received_servers.push(server.to_string());
+                }
+                Ok(Err(_)) | Err(_) => {
+                    eprintln!("Timeout reached while waiting for data");
+                }
+        }
+        }
+        let diff: Vec<_> = server_addr_v.iter().filter(|&item| !received_servers.contains(item)).cloned().collect();
+        for addr in diff{
+            let temp_serv = serv_struct_vec.iter_mut().find(|serv| serv.address ==  addr).unwrap();
+            temp_serv.size = 9999;
+        }
     
     serv_struct_vec.sort_by(compare_servers);
     // serv_struct_vec.sort_by_key(|ser| ser.size);
