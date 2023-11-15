@@ -112,7 +112,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
-        let image_name = "img_rcv".to_string() + &image_string + ".jpeg";
+        let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
+        let image_name2 = image_name.clone();
         let mut file = File::create(image_name)?;
         loop{
             //receive message from client
@@ -196,10 +197,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             }
             else {
             num_requests = num_requests - 1;
+            std::fs::remove_file(image_name2)?;
+
             }
         }
         else {
             num_requests = num_requests - 1;
+            std::fs::remove_file(image_name2)?;
         }
         println!("The sorted vector after election is: ");
         for serv in &serv_struct_vec{

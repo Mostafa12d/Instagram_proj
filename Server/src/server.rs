@@ -116,7 +116,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         client_buffer = [0; 4096];
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
-        let image_name = "img_rcv".to_string() + &image_string + ".jpeg";
+        let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
+        let image_name2 = image_name.clone();
         let mut file = File::create(image_name)?;
         loop{
             //receive message from client
@@ -195,7 +196,6 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 println!("I am {} the chosen server ", chosen_server);
 
                 let message3 = "Hello, I am the leader, aka, your mother!";
-
                 let message_bytes3 = message3.as_bytes(); 
                 //send the message to the client
                 // client_socket.send_to(message_bytes3, &client_port).await?;
@@ -203,10 +203,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             }
             else {
             num_requests = num_requests - 1;
+            //delete the file stored
+            std::fs::remove_file(image_name2)?;
             }
         }
     else {
         num_requests = num_requests - 1;
+        std::fs::remove_file(image_name2)?;
         }
     
     println!("The sorted vector after election is: ");

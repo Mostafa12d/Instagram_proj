@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 local-ip-address = "0.5.6"
-image = "0.24.7"
-base64 = "0.21.5"
+image = "0.21.0"
+steganography = "1.0.2"
 [[bin]]
 name = "client"  # This is the name of the binary
 path = "src/client.rs"  # This is the path to your source code file
