@@ -112,8 +112,10 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //to decide on which server is going to process the image.
     let mut image_num:u32 = 0;
     let mut num_requests = 0;
+    let mut client_address;
     loop {
         client_buffer = [0; 4096];
+        let mut client_message = Vec::new();
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
         let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
@@ -123,6 +125,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             //receive message from client
             let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
             println!("Received {} bytes from {}", len, client);
+            client_address = client;
+            client_message.push(client_buffer[..len].to_vec());
             file.write_all(&client_buffer[..len])?;
             // println!("Received string: {}", client);
             // breah after the last packet
@@ -150,7 +154,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut received_servers = Vec::new();
         for saddr in &server_addr_v{
             //if the server is not responding for 0.5 seconds, then we will assume that it is down
-            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
+            match time::timeout(Duration::from_millis(1000), server_socket.recv_from(&mut server_buffer)).await{
                 Ok(Ok((len, server))) => {
                     let message_server = std::str::from_utf8(&server_buffer[..len])?;
                     println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -195,11 +199,24 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 //execute
                 println!("I am {} the chosen server ", chosen_server);
 
-                let message3 = "Hello, I am the leader, aka, your mother!";
-                let message_bytes3 = message3.as_bytes(); 
-                //send the message to the client
-                // client_socket.send_to(message_bytes3, &client_port).await?;
-                //println!("Sent: {} to {}",  message3, client_port);
+                // let message3 = "Hello, I am the leader, aka, your mother!";
+                // let message_bytes3 = message3.as_bytes(); 
+                //send the message to the client+
+                //function to send an image
+                // let image_path = "./src/bambo.jpeg";
+                // let mut img = File::open(image_path)?;
+                // let mut buffer = Vec::new();
+                // println!("Image Buffer content: {:?}", buffer);
+                // iterate 400 times in a for loop
+                // img.read_to_end(&mut client_buffer)?;
+                //for i in 0..100 {    
+                for chunk in &client_message {
+                    //send packets to server
+                    println!("Sending chunk of: {} to {}", chunk.len(), client_address);
+                    client_socket.send_to(chunk, &client_address).await?;
+                }
+                //}
+
             }
             else {
             num_requests = num_requests - 1;
