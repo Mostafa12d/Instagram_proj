@@ -42,9 +42,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let remote_addr1 = "10.40.60.231:10017"; // IP address and port of the Server 0
     let remote_addr2 = "10.40.60.231:10015"; // IP address and port of the Server 1
     let remote_addr3 = "10.40.60.231:10016"; // IP address and port of the Server 2
+    // let socket = UdpSocket::bind("0.0.0.0:0").await?;
 
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
-   let mut server_buffer = [0; 4096];
+    let socket1 = UdpSocket::bind("0.0.0.0:0").await?;
+    let socket2 = UdpSocket::bind("0.0.0.0:0").await?;
+    let socket3 = UdpSocket::bind("0.0.0.0:0").await?;
+    //let mut server_buffer = [0; 4096];
+
+   let mut server1_buffer = [0; 4096];
+   let mut server2_buffer = [0; 4096];
+   let mut server3_buffer = [0; 4096];
+
 
 //function to send an image
     let image_path = "./src/bambo.jpeg";
@@ -57,9 +65,9 @@ for i in 0..10 {
     for chunk in buffer.chunks(4096) {
         //send packets to server
         println!("Sending chunk of: {}", chunk.len());
-        socket.send_to(chunk, remote_addr1).await?;
-        socket.send_to(chunk, remote_addr2).await?;
-        socket.send_to(chunk, remote_addr3).await?;
+        socket1.send_to(chunk, remote_addr1).await?;
+        socket2.send_to(chunk, remote_addr2).await?;
+        socket3.send_to(chunk, remote_addr3).await?;
     }
     }
         println!("Sent the image to the servers");
@@ -67,22 +75,45 @@ for i in 0..10 {
     let mut image_num:u32 = 0;
     loop {
         println!("Waiting for a response from servers...");
-        server_buffer = [0; 4096];
+        server1_buffer = [0; 4096];
+        server2_buffer = [0; 4096];
+        server3_buffer = [0; 4096];
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
-        let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
-        let image_name2 = image_name.clone();
-        let mut file = File::create(image_name)?;
+        let image_name = "imgs/img_rcv1".to_string() + &image_string + ".jpeg";
+        let image1_string = image_num.to_string();
+        let image1_name = "imgs/img_rcv2".to_string() + &image_string + ".jpeg";
+        let image2_string = image_num.to_string();
+        let image2_name = "imgs/img_rcv3".to_string() + &image_string + ".jpeg";
+        let mut file1 = File::create(image_name)?;
+        let mut file2 = File::create(image1_name)?;
+        let mut file3 = File::create(image2_name)?;
+
+        
         loop{
             // println!("Waiting for a message...");
             //receive message from client
-            let (len, server) = socket.recv_from(&mut server_buffer).await?;
-            println!("Received {} bytes from {}", len, server);
-            file.write_all(&server_buffer[..len])?;
-            // server_buffer = [0; 4096];
-            // println!("Received string: {}", client);
+            let (len1, server1) = socket1.recv_from(&mut server1_buffer).await?;
+            let (len2, server2) = socket2.recv_from(&mut server2_buffer).await?;
+            let (len3, server3) = socket3.recv_from(&mut server3_buffer).await?;
+
+            if len1 != 0 {
+                println!("Received {} bytes from {}", len1, server1);
+                file1.write_all(&server1_buffer[..len1])?;
+                
+            }
+            if len2 != 0 {
+                println!("Received {} bytes from {}", len2, server2);
+                file2.write_all(&server2_buffer[..len2])?;
+
+            }   
+
+            if len3 != 0{
+                println!("Received {} bytes from {}", len3, server3);
+                file3.write_all(&server3_buffer[..len3])?;
+            }
             // breah after the last packet
-            if len != 4096 {
+            if len1 != 4096 || len2 != 4096 || len3 != 4096 {
                 break;
             }
         }
@@ -98,3 +129,4 @@ for i in 0..10 {
 
     Ok(())
 }
+

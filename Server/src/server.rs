@@ -71,13 +71,13 @@ fn compare_servers(a: &ServerInfo, b: &ServerInfo) -> Ordering {
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
-    let client_port = local_addr.to_string()+":10014";
+    let client_port = local_addr.to_string()+":10017";
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_buffer = [0; 4096];
     println!("The clients' port is listening on: {}", client_port);
     println!("------------------------");
     //connect to server socket
-    let server_port_num = ":10040";
+    let server_port_num = ":10045";
     let server_port = local_addr.to_string()+server_port_num;
     let server_socket = UdpSocket::bind(&server_port).await?;
     let mut server_buffer = [0; 1024];
@@ -154,7 +154,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut received_servers = Vec::new();
         for saddr in &server_addr_v{
             //if the server is not responding for 0.5 seconds, then we will assume that it is down
-            match time::timeout(Duration::from_millis(1000), server_socket.recv_from(&mut server_buffer)).await{
+            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
                 Ok(Ok((len, server))) => {
                     let message_server = std::str::from_utf8(&server_buffer[..len])?;
                     println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -214,7 +214,14 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     //send packets to server
                     println!("Sending chunk of: {} to {}", chunk.len(), client_address);
                     client_socket.send_to(chunk, &client_address).await?;
+                    if chunk.len() != 4096 {
+                        break;
+                    }
+                // insert delay 
+                // let delay = time::Duration::from_millis(100);
+                // time::sleep(delay).await;
                 }
+                
                 //}
 
             }

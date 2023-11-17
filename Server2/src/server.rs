@@ -154,7 +154,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut received_servers = Vec::new();
         for saddr in &server_addr_v{
             //if the server is not responding for 0.5 seconds, then we will assume that it is down
-            match time::timeout(Duration::from_millis(1000), server_socket.recv_from(&mut server_buffer)).await{
+            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
                 Ok(Ok((len, server))) => {
                     let message_server = std::str::from_utf8(&server_buffer[..len])?;
                     println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -214,6 +214,11 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     //send packets to server
                     println!("Sending chunk of: {} to {}", chunk.len(), client_address);
                     client_socket.send_to(chunk, &client_address).await?;
+                    if chunk.len() != 4096 {
+                        break;
+                     }
+                    // let delay = time::Duration::from_millis(1000);
+                    // time::sleep(delay).await;
                 }
                 //}
 
