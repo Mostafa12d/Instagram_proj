@@ -113,26 +113,67 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let mut image_num:u32 = 0;
     let mut num_requests = 0;
     let mut client_address;
+
     loop {
         client_buffer = [0; 4096];
+        let mut packet_buffer = [0; 4104];
         let mut client_message = Vec::new();
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
         let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
         let image_name2 = image_name.clone();
         let mut file = File::create(image_name)?;
+        let mut i = 0;
+        let mut last_received_sequence_number: u64 = 0;
         loop{
             //receive message from client
-            let (len, client) = client_socket.recv_from(&mut client_buffer).await?;
-            println!("Received {} bytes from {}", len, client);
+            i+=1;
+            println!("i = {}", i);
+            let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
+            let received_sequence_number = u64::from_be_bytes(packet_buffer[0..8].try_into().unwrap());
+            println!("Packet sequence number: {}", received_sequence_number);
+            println!("Last received sequence number: {}", last_received_sequence_number);
+            let mut missing_packets_string = String::new();
+
+            if received_sequence_number != last_received_sequence_number + 1 {
+                println!("Received out of order packet");
+                for seq_num in last_received_sequence_number + 1..received_sequence_number {
+                    //push number as 3 digit string
+                    missing_packets_string.push_str(&format!("{:03}", seq_num));
+                }
+                println!("Missing packets: {:?}", missing_packets_string); 
+                
+            //     let byte_vec: Vec<u8> = missing_packets.iter()
+            //    .flat_map(|&num| num.to_be_bytes())
+            //     .collect();
+
+
+           // let missing_packets_string = String::from_utf8(missing_packets).expect("Invalid UTF-8");
+            let message_bytes = missing_packets_string.as_bytes();
+                //send NACK message to client
+                //println!("Missing packets: {:?}", missing_packets_string); 
+                client_socket.send_to(&message_bytes, &client).await?;
+    
+            }
+            else{
+                missing_packets_string.push_str("000");
+                let message_bytes = missing_packets_string.as_bytes();
+                client_socket.send_to(&message_bytes, &client).await?;
+
+            }
+            client_buffer.copy_from_slice(&packet_buffer[8..len]);
+            println!("client buffer size {}", client_buffer.len());
+            println!("Received {} bytes from {}", client_buffer.len(), client);
             client_address = client;
-            client_message.push(client_buffer[..len].to_vec());
-            file.write_all(&client_buffer[..len])?;
+            client_message.push(client_buffer[..len-8].to_vec());
+            file.write_all(&client_buffer[..len-8])?;
             // println!("Received string: {}", client);
             // breah after the last packet
-            if len != 4096 {
+            if i == 76 {
                 break;
-        }
+            }
+            last_received_sequence_number = received_sequence_number;
+
         }
         image_num = image_num + 1;
         num_requests = num_requests + 1;
@@ -154,7 +195,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut received_servers = Vec::new();
         for saddr in &server_addr_v{
             //if the server is not responding for 0.5 seconds, then we will assume that it is down
-            match time::timeout(Duration::from_millis(500), server_socket.recv_from(&mut server_buffer)).await{
+            match time::timeout(Duration::from_millis(1000), server_socket.recv_from(&mut server_buffer)).await{
                 Ok(Ok((len, server))) => {
                     let message_server = std::str::from_utf8(&server_buffer[..len])?;
                     println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -198,6 +239,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             if chosen_server == server_port{
                 //execute
                 println!("I am {} the chosen server ", chosen_server);
+                client_socket.send_to("1".as_bytes(), &client_address).await?;
 
                 // let message3 = "Hello, I am the leader, aka, your mother!";
                 // let message_bytes3 = message3.as_bytes(); 
@@ -210,28 +252,28 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 // iterate 400 times in a for loop
                 // img.read_to_end(&mut client_buffer)?;
                 //for i in 0..100 {    
-                for chunk in &client_message {
-                    //send packets to server
-                    println!("Sending chunk of: {} to {}", chunk.len(), client_address);
-                    client_socket.send_to(chunk, &client_address).await?;
-                    if chunk.len() != 4096 {
-                        break;
-                     }
-                    // let delay = time::Duration::from_millis(1000);
-                    // time::sleep(delay).await;
-                }
+                // for chunk in &client_message {
+                //     //send packets to server
+                //     println!("Sending chunk of: {} to {}", chunk.len(), client_address);
+                //     client_socket.send_to(chunk, &client_address).await?;
+                //     if chunk.len() != 4096 {
+                //        break;
+                //     }
+                //     // let delay = time::Duration::from_millis(1000);
+                //     // time::sleep(delay).await;
+                // }
                 //}
 
             }
             else {
             num_requests = num_requests - 1;
             //delete the file stored
-            std::fs::remove_file(image_name2)?;
+            // std::fs::remove_file(image_name2)?;
             }
         }
     else {
         num_requests = num_requests - 1;
-        std::fs::remove_file(image_name2)?;
+        // std::fs::remove_file(image_name2)?;
         }
     
     println!("The sorted vector after election is: ");
