@@ -10,27 +10,27 @@ use tokio::time::{sleep, Duration};
 use steganography::decoder::*;
 use steganography::encoder::*;
 use image::DynamicImage;
-
+use std::env;
 
 // fn main(){
 
 //     let cover = image::open("./src/bambo.jpg").unwrap();
 //     let mut secret_image = Vec::new();
 //     let mut secret = File::open("./src/yaboy.jpg").unwrap();
-//     let mut file = File::create("./src/decoded.jpg".to_string()).unwrap();
 //     secret.read_to_end(&mut secret_image).unwrap();
-    
-//     let encoders = Encoder::new(&secret_image, cover);
+
+    // let encoders = Encoder::new(&secret_image, cover);
 
 //     let encoded_image = encoders.encode_alpha();
 //     save_image_buffer(encoded_image.clone(), "./src/encoded.jpg".to_string());
 //    let clone = encoded_image.clone();
 
+//     let mut file = File::create("./src/decoded.jpg".to_string()).unwrap();
 //     let decoded_image = Decoder::new(clone);
 //     let decoded_secret = decoded_image.decode_alpha();
 //     file.write_all(&decoded_secret);
 
-    // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
+//     save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
 
 // }
 
@@ -44,11 +44,17 @@ use image::DynamicImage;
 // }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    let repetition_count: usize = args.get(1) // Get the second element (index 1)
+        .expect("Please provide a repetition count as the first argument")
+        .parse() // Attempt to parse the argument as an integer
+        .expect("Please provide a valid integer for the repetition count");
+    //original
 
     //original
-    let remote_addr1 = "172.29.255.134:10017"; // IP address and port of the Server 0
-    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "10.40.60.231:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "10.40.60.231:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "10.40.60.231:10016"; // IP address and port of the Server 2
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
    let mut server_buffer = [0; 4096];
@@ -64,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
    img.read_to_end(&mut buffer)?;
 
    
-   for i in 0..6 {    
+   for i in 0..repetition_count {    
         let mut sequence_number:u64 = 1;
 
         for chunk in buffer.chunks(4096) {
@@ -86,49 +92,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         //wait for NACK message
-        let mut nack_buffer = [0; 4096];
+        // let mut nack_buffer = [0; 4096];
         //println!("Waiting for NACK message...");
-        let (len, server) = socket.recv_from(&mut nack_buffer).await?;
-        println!("Received {} bytes from {}", len, server);
+        // let (len, server) = socket.recv_from(&mut nack_buffer).await?;
+        // println!("Received {} bytes from {}", len, server);
         
        // println!("received buffer: {:?}", nack_buffer, server);
         //if NACK message received, send the packets again to the server
 
         //println!("Stopped here!!!!");
         //let missing_packets = parse_nack_message(&nack_buffer[..len]);
-        let s = std::str::from_utf8(&nack_buffer).expect("Invalid UTF-8");
+        // let s = std::str::from_utf8(&nack_buffer).expect("Invalid UTF-8");
 
-        let mut missing_packets = Vec::new();
-        for i in (0..s.len()).step_by(3) {
+        // let mut missing_packets = Vec::new();
+        // for i in (0..s.len()).step_by(3) {
             // Get a slice of 3 characters, handling the case where the 
             // remaining characters are less than 3 at the end of the string
-            let end = std::cmp::min(i + 3, s.len());
-            missing_packets.push(&s[i..end]);
-        }
+            // let end = std::cmp::min(i + 3, s.len());
+            // missing_packets.push(&s[i..end]);
+        // }
 
         //println!("Missing packets: {:?}", missing_packets);
-        if missing_packets[0] == "000"{
-            println!("No missing packets");
-        }
-        else {
-            for &seq_num in &missing_packets {
-                let seq_string = seq_num.to_string();
-                let seq_int = seq_string.parse::<u32>().unwrap(); // Changed to u32
+        // if missing_packets[0] == "000"{
+        //     println!("No missing packets");
+        // }
+        // else {
+            // for &seq_num in &missing_packets {
+            //     let seq_string = seq_num.to_string();
+            //     let seq_int = seq_string.parse::<u32>().unwrap(); // Changed to u32
         
-                let packet_index = seq_int as usize * 4096;
-                let end_index = std::cmp::min(packet_index + 4096, buffer.len());
-                let packet_to_resend = &buffer[packet_index..end_index];
-                println!("Resending packet: {} ", seq_int );
+            //     let packet_index = seq_int as usize * 4096;
+            //     let end_index = std::cmp::min(packet_index + 4096, buffer.len());
+            //     let packet_to_resend = &buffer[packet_index..end_index];
+            //     println!("Resending packet: {} ", seq_int );
         
-                packet_buffer.fill(0);
-                packet_buffer[0..8].copy_from_slice(&seq_int.to_be_bytes()); // Convert seq_int to a byte array
-                packet_buffer[8..8 + packet_to_resend.len()].copy_from_slice(packet_to_resend);
+            //     packet_buffer.fill(0);
+            //     packet_buffer[0..8].copy_from_slice(&seq_int.to_be_bytes()); // Convert seq_int to a byte array
+            //     packet_buffer[8..8 + packet_to_resend.len()].copy_from_slice(packet_to_resend);
         
-                socket.send_to(&packet_buffer, remote_addr1).await?;
-                socket.send_to(&packet_buffer, remote_addr2).await?;
-                socket.send_to(&packet_buffer, remote_addr3).await?;
-            }
-        }
+            //     socket.send_to(&packet_buffer, remote_addr1).await?;
+            //     socket.send_to(&packet_buffer, remote_addr2).await?;
+            //     socket.send_to(&packet_buffer, remote_addr3).await?;
+            // }
+        // }
             
     }
     //add 2 secs delay
@@ -138,27 +144,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut image_num:u32 = 0;
     loop {
-        //println!("Waiting for a response from servers...");
-        // server_buffer = [0; 4096];
-        // // let mut received_data = Vec::new();
-        // let image_string = image_num.to_string();
-        // let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
-        // let image_name2 = image_name.clone();
-        // let mut file = File::create(image_name)?;
-        // loop{
-        //     // println!("Waiting for a message...");
-        //     //receive message from client
-        //     let (len, server) = socket.recv_from(&mut server_buffer).await?;
-        //     println!("Received {} bytes from {}", len, server);
-        //     file.write_all(&server_buffer[..len])?;
-        //     // server_buffer = [0; 4096];
-        //     // println!("Received string: {}", client);
-        //     // breah after the last packet
-        //     if len != 4096 {
-        //         break;
-        //     }
-        // }
-        // image_num += 1;
+        // println!("Waiting for a response from servers...");
+        server_buffer = [0; 4096];
+        // let mut received_data = Vec::new();
+        let image_string = image_num.to_string();
+        let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
+        let image_name2 = image_name.clone();
+        let mut file = File::create(image_name)?;
+        let mut i = 0;
+        loop{
+            i+=1;
+            // println!("Waiting for a message...");
+            //receive message from client
+            let (len, server) = socket.recv_from(&mut server_buffer).await?;
+            println!("Received {} bytes from {}", len, server);
+            file.write_all(&server_buffer[..len])?;
+            server_buffer = [0; 4096];
+            // println!("Received string: {}", client);
+            // breah after the last packet
+            if len != 4096 {
+                break;
+            }
+        }
+        
+        // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
+        if image_num == 0 {
+        let mut file2 = File::create("./src/decoded.jpeg".to_string()).unwrap();
+        let clone = image::open("imgs/img_rcv0.jpeg").unwrap();
+        let img_buffer = clone.to_rgba();
+        let img_buffer_clone = img_buffer.clone();
+        let decoded_image = Decoder::new(img_buffer);
+        let decoded_secret = decoded_image.decode_alpha();
+        file2.write_all(&decoded_secret).unwrap();
+        }
+        image_num += 1;
     }
 //     loop {
 //         println!("Waiting for a message...");
