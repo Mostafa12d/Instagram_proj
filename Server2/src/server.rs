@@ -1,5 +1,7 @@
 use tokio::net::UdpSocket;
 use core::num;
+use std::io::Read;
+use steganography::util::save_image_buffer;
 //use std::arch::aarch64::__breakpoint;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufRead, Write};
@@ -10,6 +12,11 @@ use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
 use tokio::time::{self, Duration};
+use std::thread;
+use image::DynamicImage;
+use steganography::decoder::*;
+use steganography::encoder::*;
+
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
@@ -72,7 +79,9 @@ fn compare_servers(a: &ServerInfo, b: &ServerInfo) -> Ordering {
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
     let client_port = local_addr.to_string()+":10016";
+    let client_port_send = local_addr.to_string()+":10002";
     let client_socket = UdpSocket::bind(&client_port).await?;
+    let mut client_socket_send = UdpSocket::bind(&client_port_send).await?;
     let mut client_buffer = [0; 4096];
     println!("The clients' port is listening on: {}", client_port);
     println!("------------------------");
@@ -114,17 +123,18 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let mut num_requests = 0;
     let mut client_address;
 
+    //client send and receive thread
     loop {
         client_buffer = [0; 4096];
         let mut packet_buffer = [0; 4104];
         let mut client_message = Vec::new();
         // let mut received_data = Vec::new();
+        let mut last_received_sequence_number: u64 = 0;
         let image_string = image_num.to_string();
         let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpeg";
         let image_name2 = image_name.clone();
         let mut file = File::create(image_name)?;
         let mut i = 0;
-        let mut last_received_sequence_number: u64 = 0;
         loop{
             //receive message from client
             i+=1;
@@ -133,34 +143,34 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             let received_sequence_number = u64::from_be_bytes(packet_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);
             println!("Last received sequence number: {}", last_received_sequence_number);
-            let mut missing_packets_string = String::new();
 
+            let mut missing_packets_string = String::new();
             if received_sequence_number != last_received_sequence_number + 1 {
                 println!("Received out of order packet");
                 for seq_num in last_received_sequence_number + 1..received_sequence_number {
                     //push number as 3 digit string
                     missing_packets_string.push_str(&format!("{:03}", seq_num));
                 }
-                println!("Missing packets: {:?}", missing_packets_string); 
+                // println!("Missing packets: {:?}", missing_packets_string); 
                 
             //     let byte_vec: Vec<u8> = missing_packets.iter()
             //    .flat_map(|&num| num.to_be_bytes())
             //     .collect();
 
 
-           // let missing_packets_string = String::from_utf8(missing_packets).expect("Invalid UTF-8");
-            let message_bytes = missing_packets_string.as_bytes();
-                //send NACK message to client
-                //println!("Missing packets: {:?}", missing_packets_string); 
-                client_socket.send_to(&message_bytes, &client).await?;
-    
-            }
-            else{
-                missing_packets_string.push_str("000");
-                let message_bytes = missing_packets_string.as_bytes();
-                client_socket.send_to(&message_bytes, &client).await?;
+        //    // let missing_packets_string = String::from_utf8(missing_packets).expect("Invalid UTF-8");
+        //    let message_bytes = missing_packets_string.as_bytes();
+        //    //send NACK message to client
+        //    //println!("Missing packets: {:?}", missing_packets_string); 
+        //    client_socket.send_to(&message_bytes, &client).await?;
 
             }
+        //     else{
+        //         missing_packets_string.push_str("000");
+        //         let message_bytes = missing_packets_string.as_bytes();
+        //         client_socket.send_to(&message_bytes, &client).await?;
+
+        //     }
             client_buffer.copy_from_slice(&packet_buffer[8..len]);
             println!("client buffer size {}", client_buffer.len());
             println!("Received {} bytes from {}", client_buffer.len(), client);
@@ -173,13 +183,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 break;
             }
             last_received_sequence_number = received_sequence_number;
-
         }
         image_num = image_num + 1;
         num_requests = num_requests + 1;
         // let message_client = num_requests;
         println!("------------------------");
 
+        //fault tolerance thread
         let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
         my_serv.size = num_requests as u32;
         
@@ -195,7 +205,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut received_servers = Vec::new();
         for saddr in &server_addr_v{
             //if the server is not responding for 0.5 seconds, then we will assume that it is down
-            match time::timeout(Duration::from_millis(1000), server_socket.recv_from(&mut server_buffer)).await{
+            match time::timeout(Duration::from_millis(200), server_socket.recv_from(&mut server_buffer)).await{
                 Ok(Ok((len, server))) => {
                     let message_server = std::str::from_utf8(&server_buffer[..len])?;
                     println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -216,7 +226,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             //change their size to 255 which means unavailable
             temp_serv.size = 9999;
         }
-    
+
+    //election thread
     serv_struct_vec.sort_by(compare_servers);
     println!("The sorted vector before election is: ");
     for serv in &serv_struct_vec{
@@ -239,7 +250,6 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             if chosen_server == server_port{
                 //execute
                 println!("I am {} the chosen server ", chosen_server);
-                client_socket.send_to("1".as_bytes(), &client_address).await?;
 
                 // let message3 = "Hello, I am the leader, aka, your mother!";
                 // let message_bytes3 = message3.as_bytes(); 
@@ -251,20 +261,36 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 // println!("Image Buffer content: {:?}", buffer);
                 // iterate 400 times in a for loop
                 // img.read_to_end(&mut client_buffer)?;
-                //for i in 0..100 {    
-                // for chunk in &client_message {
-                //     //send packets to server
-                //     println!("Sending chunk of: {} to {}", chunk.len(), client_address);
-                //     client_socket.send_to(chunk, &client_address).await?;
-                //     if chunk.len() != 4096 {
-                //        break;
-                //     }
+                //for i in 0..100 {
+            let mut secret_image = File::open(image_name2).unwrap(); 
+            let cover = image::open("./src/yaboy.jpg").unwrap();
+            let mut secret_image_vec = Vec::new();  
+            // let mut secret = File::open("./src/yaboy.jpg").unwrap();
+            secret_image.read_to_end(&mut secret_image_vec).unwrap();
+            
+            let encoders = Encoder::new(&secret_image_vec, cover);
+
+            let encoded_image = encoders.encode_alpha();
+            save_image_buffer(encoded_image.clone(), "./src/encoded.jpg".to_string());
+
+            let mut encoded = File::open("./src/encoded.jpg").unwrap(); 
+            let mut encoded_vec = Vec::new();  
+            // let mut secret = File::open("./src/yaboy.jpg").unwrap();
+            encoded.read_to_end(&mut encoded_vec).unwrap();
+                    for chunk in encoded_vec.chunks(4096){
+                    //send packets to server
+                    println!("Sending chunk of: {} to {}", chunk.len(), client_address);
+                    client_socket_send.send_to(chunk, &client_address).await?;
+                    if chunk.len() != 4096 {
+                       break;
+                    }
                 //     // let delay = time::Duration::from_millis(1000);
                 //     // time::sleep(delay).await;
                 // }
                 //}
 
             }
+        }
             else {
             num_requests = num_requests - 1;
             //delete the file stored
@@ -275,7 +301,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         num_requests = num_requests - 1;
         // std::fs::remove_file(image_name2)?;
         }
-    
+    //encryption and resending thread
+
     println!("The sorted vector after election is: ");
     for serv in &serv_struct_vec{
         println!("{} {}", serv.address, serv.size);
