@@ -1,4 +1,5 @@
 use tokio::net::UdpSocket;
+use tokio::time::{self, sleep, Duration};
 use core::num;
 use std::io::Read;
 use steganography::util::save_image_buffer;
@@ -11,7 +12,7 @@ use rand::seq::SliceRandom;
 use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
-use tokio::time::{self, Duration};
+// use tokio::time::{self, Duration};
 use std::thread;
 use image::DynamicImage;
 use steganography::decoder::*;
@@ -284,6 +285,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     if chunk.len() != 4096 {
                        break;
                     }
+                    sleep(Duration::from_millis(100)).await;
                 //     // let delay = time::Duration::from_millis(1000);
                 //     // time::sleep(delay).await;
                 // }

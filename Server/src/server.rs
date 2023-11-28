@@ -1,4 +1,6 @@
 use tokio::net::UdpSocket;
+use tokio::time::{self, sleep, Duration};
+
 use core::num;
 use std::io::Read;
 use steganography::util::save_image_buffer;
@@ -11,7 +13,7 @@ use rand::seq::SliceRandom;
 use std::cmp::Ordering;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
-use tokio::time::{self, Duration};
+// use tokio::time::{self, Duration};
 use std::thread;
 use image::DynamicImage;
 use steganography::decoder::*;
@@ -127,7 +129,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     loop {
         client_buffer = [0; 4096];
         let mut packet_buffer = [0; 4104];
-        let mut client_message = Vec::new();
+        let mut processing_buffer = [0; 4104];
+        //let mut client_message = Vec::new();
         // let mut received_data = Vec::new();
         let mut last_received_sequence_number: u64 = 0;
         let image_string = image_num.to_string();
@@ -140,7 +143,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             i+=1;
             println!("i = {}", i);
             let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
-            let received_sequence_number = u64::from_be_bytes(packet_buffer[0..8].try_into().unwrap());
+            processing_buffer = packet_buffer;
+            let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);
             println!("Last received sequence number: {}", last_received_sequence_number);
 
@@ -151,32 +155,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     //push number as 3 digit string
                     missing_packets_string.push_str(&format!("{:03}", seq_num));
                 }
-                // println!("Missing packets: {:?}", missing_packets_string); 
-                
-            //     let byte_vec: Vec<u8> = missing_packets.iter()
-            //    .flat_map(|&num| num.to_be_bytes())
-            //     .collect();
-
-
-        //    // let missing_packets_string = String::from_utf8(missing_packets).expect("Invalid UTF-8");
-        //    let message_bytes = missing_packets_string.as_bytes();
-        //    //send NACK message to client
-        //    //println!("Missing packets: {:?}", missing_packets_string); 
-        //    client_socket.send_to(&message_bytes, &client).await?;
-
-            }
-        //     else{
-        //         missing_packets_string.push_str("000");
-        //         let message_bytes = missing_packets_string.as_bytes();
-        //         client_socket.send_to(&message_bytes, &client).await?;
-
-        //     }
-            client_buffer.copy_from_slice(&packet_buffer[8..len]);
+             }
+            client_buffer.copy_from_slice(&processing_buffer[8..len]);
             println!("client buffer size {}", client_buffer.len());
             println!("Received {} bytes from {}", client_buffer.len(), client);
             client_address = client;
-            client_message.push(client_buffer[..len-8].to_vec());
             file.write_all(&client_buffer[..len-8])?;
+            //client_message.push(client_buffer[..len-8].to_vec());
             // println!("Received string: {}", client);
             // breah after the last packet
             if i == 76 {
@@ -284,6 +269,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     if chunk.len() != 4096 {
                        break;
                     }
+                    sleep(Duration::from_millis(5)).await;
                 //     // let delay = time::Duration::from_millis(1000);
                 //     // time::sleep(delay).await;
                 // }
