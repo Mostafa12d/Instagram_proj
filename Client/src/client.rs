@@ -54,9 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //original
 
     //original
-    let remote_addr1 = "10.40.55.192:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "10.40.55.192:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "10.40.55.192:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
    let mut server_buffer = [0; 4096];
@@ -101,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
         println!("Sent the image to the servers");
     
-    server_buffer = [0; 4096];
+        server_buffer = [0; 4096];
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
         let image_name = "imgs/img_rcv".to_string() + &image_string + ".png";

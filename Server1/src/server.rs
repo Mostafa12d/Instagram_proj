@@ -17,7 +17,7 @@ use std::thread;
 use image::DynamicImage;
 use steganography::decoder::*;
 use steganography::encoder::*;
-
+use sysinfo::{CpuExt, System, SystemExt};
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
@@ -117,7 +117,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     // Print server information
     println!("My server's port is listening on: {}", server_port);
     println!("------------------------");
-
+    // Get the CPU information
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let process_count = sys.processes().len();
+    println!("=> System:");
+    println!("Number of running processes: {}", process_count);
+    println!("------------------------");   
     //every server is going to receive the image from the client and then we will do leader election
     //to decide on which server is going to process the image.
     let mut image_num:u32 = 0;
@@ -128,7 +134,8 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     loop {
         client_buffer = [0; 4096];
         let mut packet_buffer = [0; 4104];
-        let mut client_message = Vec::new();
+        let mut processing_buffer = [0; 4104];
+        //let mut client_message = Vec::new();
         // let mut received_data = Vec::new();
         let mut last_received_sequence_number: u64 = 0;
         let image_string = image_num.to_string();
@@ -141,7 +148,9 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             i+=1;
             println!("i = {}", i);
             let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
-            let received_sequence_number = u64::from_be_bytes(packet_buffer[0..8].try_into().unwrap());
+            let length = len;
+            processing_buffer = packet_buffer;
+            let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);
             println!("Last received sequence number: {}", last_received_sequence_number);
 
@@ -152,35 +161,23 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     //push number as 3 digit string
                     missing_packets_string.push_str(&format!("{:03}", seq_num));
                 }
-                // println!("Missing packets: {:?}", missing_packets_string); 
-                
-            //     let byte_vec: Vec<u8> = missing_packets.iter()
-            //    .flat_map(|&num| num.to_be_bytes())
-            //     .collect();
+             }
 
-
-        //    // let missing_packets_string = String::from_utf8(missing_packets).expect("Invalid UTF-8");
-        //    let message_bytes = missing_packets_string.as_bytes();
-        //    //send NACK message to client
-        //    //println!("Missing packets: {:?}", missing_packets_string); 
-        //    client_socket.send_to(&message_bytes, &client).await?;
-
-            }
-        //     else{
-        //         missing_packets_string.push_str("000");
-        //         let message_bytes = missing_packets_string.as_bytes();
-        //         client_socket.send_to(&message_bytes, &client).await?;
-
-        //     }
-            client_buffer.copy_from_slice(&packet_buffer[8..len]);
+            let data_length = len - 8; // Adjust for the sequence number
+            // Make sure we don't exceed the bounds of either buffer
+            let copy_length = std::cmp::min(data_length, client_buffer.len());
+             // Now safely copy the data
+            client_buffer[..copy_length].copy_from_slice(&processing_buffer[8..8 + copy_length]);         
             println!("client buffer size {}", client_buffer.len());
             println!("Received {} bytes from {}", client_buffer.len(), client);
             client_address = client;
-            client_message.push(client_buffer[..len-8].to_vec());
             file.write_all(&client_buffer[..len-8])?;
+            //client_message.push(client_buffer[..len-8].to_vec());
             // println!("Received string: {}", client);
-            // breah after the last packet
-            if i == 42 {
+            // break after the last packet
+            // print the packet_buffer length
+            println!("Packet buffer length: {}", length);
+            if length < 4104 {
                 break;
             }
             last_received_sequence_number = received_sequence_number;
@@ -192,9 +189,11 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
         //fault tolerance thread
         let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
-        my_serv.size = num_requests as u32;
+        my_serv.size = num_requests + process_count as u32;
+        let mut server_load =  my_serv.size.clone();
+
         
-        let message_str = num_requests.to_string();
+        let message_str = server_load.to_string();
         // let m = "Hello, yasta!";
         let message_size_bytes = message_str.as_bytes();
         for addr in &server_addr_v{
@@ -236,7 +235,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     }
     //check if the lowest size is my size and the tie case
     let mut i = 0;
-    if serv_struct_vec[0].size as usize == num_requests as usize{
+    if serv_struct_vec[0].size as usize == server_load as usize{
         for serv in &serv_struct_vec{
              if serv.size == serv_struct_vec[0].size{
                  i = i+1;

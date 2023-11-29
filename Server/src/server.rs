@@ -1,6 +1,5 @@
 use tokio::net::UdpSocket;
 use tokio::time::{self, sleep, Duration};
-
 use core::num;
 use std::io::Read;
 use steganography::util::save_image_buffer;
@@ -18,7 +17,7 @@ use std::thread;
 use image::DynamicImage;
 use steganography::decoder::*;
 use steganography::encoder::*;
-
+use sysinfo::{CpuExt, System, SystemExt};
  // to identify the ip address of the machine this code is running on
 use local_ip_address::local_ip;
 
@@ -118,7 +117,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     // Print server information
     println!("My server's port is listening on: {}", server_port);
     println!("------------------------");
-
+    // Get the CPU information
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let process_count = sys.processes().len();
+    println!("=> System:");
+    println!("Number of running processes: {}", process_count);
+    println!("------------------------");   
     //every server is going to receive the image from the client and then we will do leader election
     //to decide on which server is going to process the image.
     let mut image_num:u32 = 0;
@@ -184,9 +189,11 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
         //fault tolerance thread
         let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
-        my_serv.size = num_requests as u32;
+        my_serv.size = num_requests + process_count as u32;
+        let mut server_load =  my_serv.size.clone();
+
         
-        let message_str = num_requests.to_string();
+        let message_str = server_load.to_string();
         // let m = "Hello, yasta!";
         let message_size_bytes = message_str.as_bytes();
         for addr in &server_addr_v{
@@ -228,7 +235,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     }
     //check if the lowest size is my size and the tie case
     let mut i = 0;
-    if serv_struct_vec[0].size as usize == num_requests as usize{
+    if serv_struct_vec[0].size as usize == server_load as usize{
         for serv in &serv_struct_vec{
              if serv.size == serv_struct_vec[0].size{
                  i = i+1;
