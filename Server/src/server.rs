@@ -143,6 +143,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             i+=1;
             println!("i = {}", i);
             let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
+            let length = len;
             processing_buffer = packet_buffer;
             let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);
@@ -156,15 +157,22 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     missing_packets_string.push_str(&format!("{:03}", seq_num));
                 }
              }
-            client_buffer.copy_from_slice(&processing_buffer[8..len]);
+
+            let data_length = len - 8; // Adjust for the sequence number
+            // Make sure we don't exceed the bounds of either buffer
+            let copy_length = std::cmp::min(data_length, client_buffer.len());
+             // Now safely copy the data
+            client_buffer[..copy_length].copy_from_slice(&processing_buffer[8..8 + copy_length]);         
             println!("client buffer size {}", client_buffer.len());
             println!("Received {} bytes from {}", client_buffer.len(), client);
             client_address = client;
             file.write_all(&client_buffer[..len-8])?;
             //client_message.push(client_buffer[..len-8].to_vec());
             // println!("Received string: {}", client);
-            // breah after the last packet
-            if i == 76 {
+            // break after the last packet
+            // print the packet_buffer length
+            println!("Packet buffer length: {}", length);
+            if length < 4104 {
                 break;
             }
             last_received_sequence_number = received_sequence_number;

@@ -68,31 +68,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
    // println!("Image Buffer content: {:?}", buffer);
    // iterate 400 times in a for loop
    img.read_to_end(&mut buffer)?;
-
+   
    
    let mut image_num:u32 = 0;
-    // println!("Waiting for a response from servers...");
-    for i in 0..repetition_count {    
-        let mut sequence_number:u64 = 1;
-
-        for chunk in buffer.chunks(4096) {
+   // println!("Waiting for a response from servers...");
+   for i in 0..repetition_count {    
+       let mut sequence_number:u64 = 1;
+       
+       for chunk in buffer.chunks(4096) {
+            let mut packet_vector: Vec<u8> = Vec::new();
             // Clear the packet buffer
-            packet_buffer.fill(0);
+            //packet_buffer.fill(0);
 
             // Include the sequence number in the packet
-            packet_buffer[0..8].copy_from_slice(&sequence_number.to_be_bytes());
-            packet_buffer[8..chunk.len()+8].copy_from_slice(chunk);
+            packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+            packet_vector.extend_from_slice(chunk);
 
             //send packets to server
             //println!("Sending chunk of: {}", chunk.len());
-            socket.send_to(&packet_buffer, remote_addr1).await?;
-            socket.send_to(&packet_buffer, remote_addr2).await?;
-            socket.send_to(&packet_buffer, remote_addr3).await?;
+            socket.send_to(&packet_vector, remote_addr1).await?;
+            socket.send_to(&packet_vector, remote_addr2).await?;
+            socket.send_to(&packet_vector, remote_addr3).await?;
             
             //sleep for 1ms
             sleep(Duration::from_millis(100)).await;
             // Increment the sequence number for the next packet
             sequence_number += 1;
+            println!("Sent packet of size {}"  , packet_vector.len());
         }
     
         println!("Sent the image to the servers");
@@ -119,18 +121,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         
-        // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
-        //if image_num == 0 {
-        let image_name2 = "imgs/decoded_img".to_string() + &image_string + ".jpg";
-        let mut file2 = File::create(image_name2)?;
-        let clone = image::open(image_cloned).unwrap();
-        let img_buffer = clone.to_rgba();
-        //let img_buffer_clone = img_buffer.clone();
-        let decoded_image = Decoder::new(img_buffer);
-        let decoded_secret = decoded_image.decode_alpha();
+        // // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());pwd
+        // //if image_num == 0 {
+        // let image_name2 = "imgs/decoded_img".to_string() + &image_string + ".jpg";
+        // let mut file2 = File::create(image_name2)?;
+        // let clone = image::open(image_cloned).unwrap();
+        // let img_buffer = clone.to_rgba();
+        // //let img_buffer_clone = img_buffer.clone();
+        // let decoded_image = Decoder::new(img_buffer);
+        // let decoded_secret = decoded_image.decode_alpha();
 
-        file2.write_all(&decoded_secret).unwrap();
-        //}
+        // file2.write_all(&decoded_secret).unwrap();
+        // //}
         image_num += 1;
     }
 
