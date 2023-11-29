@@ -256,7 +256,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 // img.read_to_end(&mut client_buffer)?;
                 //for i in 0..100 {
             let mut secret_image = File::open(image_name2).unwrap(); 
-            let cover = image::open("./src/yaboy.jpg").unwrap();
+            let cover = image::open("./src/loading.png").unwrap();
             let mut secret_image_vec = Vec::new();  
             // let mut secret = File::open("./src/yaboy.jpg").unwrap();
             secret_image.read_to_end(&mut secret_image_vec).unwrap();
@@ -264,9 +264,9 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             let encoders = Encoder::new(&secret_image_vec, cover);
 
             let encoded_image = encoders.encode_alpha();
-            save_image_buffer(encoded_image.clone(), "./src/encoded.jpg".to_string());
+            save_image_buffer(encoded_image.clone(), "./src/encoded.png".to_string());
 
-            let mut encoded = File::open("./src/encoded.jpg").unwrap(); 
+            let mut encoded = File::open("./src/encoded.png").unwrap(); 
             let mut encoded_vec = Vec::new();  
             // let mut secret = File::open("./src/yaboy.jpg").unwrap();
             encoded.read_to_end(&mut encoded_vec).unwrap();
