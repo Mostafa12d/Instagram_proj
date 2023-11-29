@@ -2,6 +2,8 @@ use steganography::encoder::Encoder;
 use steganography::util::save_image_buffer;
 // This is the client
 use tokio::net::UdpSocket;
+use std::io::BufWriter;
+use image::ImageFormat;
 use std::fs::File;
 use std::io::{BufReader, BufRead, Write};
 use std::io::Cursor;
@@ -52,9 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //original
 
     //original
-    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "10.40.55.192:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "10.40.55.192:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "10.40.55.192:10016"; // IP address and port of the Server 2
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
    let mut server_buffer = [0; 4096];
@@ -62,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
    let mut packet_buffer = [0; 4104]; // 4096 for data + 8 for sequence number
    
    //function to send an image
-   let image_path = "./src/bambo.jpeg";
+   let image_path = "./src/car.png";
    let mut img = File::open(image_path)?;
    let mut buffer = Vec::new();
    // println!("Image Buffer content: {:?}", buffer);
@@ -100,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     server_buffer = [0; 4096];
         // let mut received_data = Vec::new();
         let image_string = image_num.to_string();
-        let image_name = "imgs/img_rcv".to_string() + &image_string + ".jpg";
+        let image_name = "imgs/img_rcv".to_string() + &image_string + ".png";
         let image_cloned = image_name.clone();
         let mut file = File::create(image_name)?;
         let mut i = 0;
@@ -121,15 +123,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
         //if image_num == 0 {
-        let image_name2 = "imgs/decoded_img".to_string() + &image_string + ".jpg";
-        let mut file2 = File::create(image_name2)?;
-        let clone = image::open(image_cloned).unwrap();
+        let image_name2 = "imgs/decoded_img".to_string() + &image_string + ".png";
+        // let mut file2 = File::create(image_name2)?;
+        let clone = image::open(image_cloned)?;
         let img_buffer = clone.to_rgba();
+        // println!("Image Buffer content: {:?}", img_buffer);
         //let img_buffer_clone = img_buffer.clone();
         let decoded_image = Decoder::new(img_buffer);
         let decoded_secret = decoded_image.decode_alpha();
 
-        file2.write_all(&decoded_secret).unwrap();
+        let decoded_img = image::load_from_memory(&decoded_secret)?;
+        let mut output_file = BufWriter::new(File::create(image_name2)?);
+        decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
+        // file2.write_all(&decoded_secret).unwrap();
         //}
         image_num += 1;
     }
