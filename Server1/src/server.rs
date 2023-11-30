@@ -84,6 +84,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let client_socket = UdpSocket::bind(&client_port).await?;
     let mut client_socket_send = UdpSocket::bind(&client_port_send).await?;
     let mut client_buffer = [0; 4096];
+
     println!("The clients' port is listening on: {}", client_port);
     println!("------------------------");
     //connect to server socket
@@ -117,6 +118,16 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     // Print server information
     println!("My server's port is listening on: {}", server_port);
     println!("------------------------");
+
+    // Create a file to store the received IP addresses
+    let mut DS = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open("./src/DS.txt")
+        .unwrap();
+
+
     // Get the CPU information
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -144,11 +155,20 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let mut file = File::create(image_name)?;
         let mut i = 0;
         loop{
-            //receive message from client
+            //receive image packets from client
             i+=1;
             println!("i = {}", i);
             let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
             let length = len;
+            if len == 8 {
+                println!("Received heartbeat");
+                //Open the DS file and append the socket address to the file
+                let client_string = client.to_string();
+                DS.write_all(client_string.as_bytes())?;
+                DS.write_all(b"\n")?;
+                packet_buffer = [0; 4104];
+                continue;
+            }
             processing_buffer = packet_buffer;
             let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);

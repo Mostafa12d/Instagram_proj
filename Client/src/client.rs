@@ -2,6 +2,7 @@ use steganography::encoder::Encoder;
 use steganography::util::save_image_buffer;
 // This is the client
 use tokio::net::UdpSocket;
+use tokio::time::interval;
 use std::io::BufWriter;
 use image::ImageFormat;
 use std::fs::File;
@@ -44,6 +45,15 @@ use std::env;
 //         u64::from_be_bytes(int_bytes.try_into().unwrap())
 //     }).collect()
 // }
+
+async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Send the message to the server
+    socket.send_to(message, remote_addr1).await?;
+    socket.send_to(message, remote_addr2).await?;
+    socket.send_to(message, remote_addr3).await?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -51,7 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("Please provide a repetition count as the first argument")
         .parse() // Attempt to parse the argument as an integer
         .expect("Please provide a valid integer for the repetition count");
-    //original
 
     //original
     let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
@@ -59,28 +68,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
-   let mut server_buffer = [0; 4096];
+    let mut server_buffer = [0; 4096]; // this is to receive from the servers with
+    let mut ping_buffer: [u8; 8] = [0; 8]; // Tells the server I'm up
+    //function to send an image
+    let image_path = "./src/car.png";
+    let mut img = File::open(image_path)?;
+    let mut buffer = Vec::new();
+    // println!("Image Buffer content: {:?}", buffer);
+    // iterate 400 times in a for loop
+    img.read_to_end(&mut buffer)?;    
+    let mut image_num:u32 = 0;
 
-   let mut packet_buffer = [0; 4104]; // 4096 for data + 8 for sequence number
-   
-   //function to send an image
-   let image_path = "./src/car.png";
-   let mut img = File::open(image_path)?;
-   let mut buffer = Vec::new();
-   // println!("Image Buffer content: {:?}", buffer);
-   // iterate 400 times in a for loop
-   img.read_to_end(&mut buffer)?;
-   
-   
-   let mut image_num:u32 = 0;
-   // println!("Waiting for a response from servers...");
+    // ping servers "I'm up"
+    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+
+
+   //send image to servers
    for i in 0..repetition_count {    
        let mut sequence_number:u64 = 1;
        
        for chunk in buffer.chunks(4096) {
             let mut packet_vector: Vec<u8> = Vec::new();
-            // Clear the packet buffer
-            //packet_buffer.fill(0);
 
             // Include the sequence number in the packet
             packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
