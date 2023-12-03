@@ -176,6 +176,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 let mut DS_string = String::new();
                 DS.read_to_string(&mut DS_string)?;
                 client_socket_send.send_to(DS_string.as_bytes(), &client).await?;
+                packet_buffer = [0; 4104];
                 continue;
             }
             

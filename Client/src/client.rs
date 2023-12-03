@@ -8,6 +8,7 @@ use image::ImageFormat;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageError};
 use std::fs::File;
+use std::fs;
 use std::io::{BufReader, BufRead, Write};
 use std::io::Cursor;
 use std::io::Read;
@@ -15,6 +16,9 @@ use tokio::time::{sleep, Duration};
 use steganography::decoder::*;
 use steganography::encoder::*;
 use std::env;
+use std::path::{Path, PathBuf};
+use local_ip_address::local_ip;
+
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -31,15 +35,25 @@ async fn request_ds(socket: &UdpSocket, remote_addr: &str) -> Result<Vec<String>
     let request_buffer = [1; 7];
     let mut text_file = Vec::new();
     socket.send_to(&request_buffer, remote_addr).await?;
+    let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
+    let addr = socket.local_addr()?;
+    let port = addr.port();
+    let local_addr = local_ip.to_string()+":"+port.to_string().as_str();
+    println!("Listening on {}", local_addr);
 
     let (len, server) = socket.recv_from(&mut rcv_buffer).await?;
     println!("Received {} bytes from {}", len, server);
     let message_server = std::str::from_utf8(&rcv_buffer[..len])?;
-    println!("Received the address: {} from server {}", message_server, server);
     //add received server to the vector
-    if !text_file.contains(&message_server.to_string()) {
-        text_file.push(message_server.to_string());
+    for line in message_server.lines(){
+    if !text_file.contains(&line.to_string()) {
+        //add all the ips except the one that sent the message
+        if line != local_addr{
+        text_file.push(line.to_string());
+        println!("Received this address: {} ", line);
+        }
     } 
+    }
     Ok(text_file)
 }
 
@@ -70,6 +84,45 @@ fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(
     Ok(())
 }
 
+fn resize_all_images(new_width: u32) -> Result<(), ImageError> {
+    let imgs_directory = Path::new("./src/imgs");
+    let resized_directory = Path::new("./resized_imgs");
+
+    // Create the resized_imgs directory if it doesn't exist
+    if !resized_directory.exists() {
+        fs::create_dir(resized_directory)?;
+    }
+
+    for entry in fs::read_dir(imgs_directory)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        // Check if the entry is a file and has an image extension
+        if path.is_file() && is_image_file(&path) {
+            let input_path = path.to_str().unwrap();
+
+            // Adjust the output path to save in the resized_imgs folder
+            let mut output_path = PathBuf::from(resized_directory);
+            output_path.push(format!("resized_{}", path.file_name().unwrap().to_str().unwrap()));
+
+            resize_image(input_path, output_path.to_str().unwrap(), new_width)?;
+        }
+    }
+
+    Ok(())
+}
+
+// Helper function to determine if a path is an image file
+fn is_image_file(path: &Path) -> bool {
+    match path.extension().and_then(std::ffi::OsStr::to_str) {
+        Some(ext) => match ext.to_lowercase().as_str() {
+            "jpg" | "jpeg" | "png" | "gif" | "bmp" => true,
+            _ => false,
+        },
+        None => false,
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -78,7 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse() // Attempt to parse the argument as an integer
         .expect("Please provide a valid integer for the repetition count");
 
-    resize_image("./src/car.png", "./src/resized.png", 50)?;
+
+    // for all images in the imgs folder, call the resize_image function
+    resize_all_images(50)?;
 
     //original
     let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
@@ -86,10 +141,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    let mut server_buffer = [0; 4096]; // this is to receive from the servers with
+    // get my port number
+    // let local_addr = socket.local_addr()?;
+    // let port = local_addr.port();
+    // println!("Listening on {}", port);
+
+    let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
+    let addr = socket.local_addr()?;
+    let port = addr.port();
+    let local_addr = local_ip.to_string()+":"+port.to_string().as_str();
+    println!("Listening on {}", local_addr);
+    
+    let mut server_buffer: [u8; 4096] = [0; 4096]; // this is to receive from the servers with
     let mut ping_buffer: [u8; 8] = [0; 8]; // Tells the server I'm up
     //function to send an image
-    let image_path = "./src/car.png";
+    let image_path = "./src/imgs/car.png";
     let mut img = File::open(image_path)?;
     let mut buffer = Vec::new();
     // println!("Image Buffer content: {:?}", buffer);
@@ -99,7 +165,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ping servers "I'm up"
     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-    request_ds(&socket, remote_addr1).await?;
+    let mut client_vec = Vec::new();
+    client_vec = request_ds(&socket, remote_addr1).await?;
+    if client_vec.len() != 0 {
+        println!("Received the address: {} from server", &client_vec[0]);
+        send_to_peer(&socket, &client_vec[0]).await?;
+    }
+    // rceive frmo cleint 
+    let (len, src) = socket.recv_from(&mut server_buffer).await?;
+    if len == 6 {
+        // send all the low res images to the client
+        let imgs_directory = Path::new("./resized_imgs");
+        for entry in fs::read_dir(imgs_directory)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if the entry is a file and has an image extension
+            if path.is_file() && is_image_file(&path) {
+                let input_path = path.to_str().unwrap();
+                let mut img = File::open(input_path)?;
+                let mut buffer = Vec::new();
+                img.read_to_end(&mut buffer)?;
+                //send image to client
+                socket.send_to(&buffer, src).await?;
+            }
+        }
+        //clear buffer
+        server_buffer = [0; 4096];
+    }
 
    //send image to servers
    for i in 0..repetition_count {    
@@ -138,7 +231,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             i+=1;
             // println!("Waiting for a message...");
             //receive message from client
+            server_buffer = [0; 4096];
             let (len, server) = socket.recv_from(&mut server_buffer).await?;
+
             println!("Received {} bytes from {}", len, server);
             file.write_all(&server_buffer[..len])?;
             server_buffer = [0; 4096];
