@@ -5,6 +5,8 @@ use tokio::net::UdpSocket;
 use tokio::time::interval;
 use std::io::BufWriter;
 use image::ImageFormat;
+use image::imageops::FilterType;
+use image::{DynamicImage, GenericImageView, ImageError};
 use std::fs::File;
 use std::io::{BufReader, BufRead, Write};
 use std::io::Cursor;
@@ -12,45 +14,59 @@ use std::io::Read;
 use tokio::time::{sleep, Duration};
 use steganography::decoder::*;
 use steganography::encoder::*;
-use image::DynamicImage;
 use std::env;
 
-// fn main(){
-
-//     let cover = image::open("./src/bambo.jpg").unwrap();
-//     let mut secret_image = Vec::new();
-//     let mut secret = File::open("./src/yaboy.jpg").unwrap();
-//     secret.read_to_end(&mut secret_image).unwrap();
-
-    // let encoders = Encoder::new(&secret_image, cover);
-
-//     let encoded_image = encoders.encode_alpha();
-//     save_image_buffer(encoded_image.clone(), "./src/encoded.jpg".to_string());
-//    let clone = encoded_image.clone();
-
-//     let mut file = File::create("./src/decoded.jpg".to_string()).unwrap();
-//     let decoded_image = Decoder::new(clone);
-//     let decoded_secret = decoded_image.decode_alpha();
-//     file.write_all(&decoded_secret);
-
-//     save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
-
-// }
-
-// fn parse_nack_message(nack_msg: &[u8]) -> Vec<u64> {
-//     // Implement parsing logic here
-//     // Example: Convert each 8 bytes to a u64 sequence number
-//     nack_msg.chunks(8).map(|chunk| {
-//         let (int_bytes, _) = chunk.split_at(std::mem::size_of::<u64>());
-//         u64::from_be_bytes(int_bytes.try_into().unwrap())
-//     }).collect()
-// }
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Send the message to the server
     socket.send_to(message, remote_addr1).await?;
     socket.send_to(message, remote_addr2).await?;
     socket.send_to(message, remote_addr3).await?;
+    Ok(())
+}
+async fn request_ds(socket: &UdpSocket, remote_addr: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    // Send the message to the server
+    let mut rcv_buffer:[u8; 4096] = [0; 4096];
+    //message of 1 which is of length 7 bytes meaning request
+    let request_buffer = [1; 7];
+    let mut text_file = Vec::new();
+    socket.send_to(&request_buffer, remote_addr).await?;
+
+    let (len, server) = socket.recv_from(&mut rcv_buffer).await?;
+    println!("Received {} bytes from {}", len, server);
+    let message_server = std::str::from_utf8(&rcv_buffer[..len])?;
+    println!("Received the address: {} from server {}", message_server, server);
+    //add received server to the vector
+    if !text_file.contains(&message_server.to_string()) {
+        text_file.push(message_server.to_string());
+    } 
+    Ok(text_file)
+}
+
+async fn send_to_peer(socket: &UdpSocket, remote_addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Send a request to the client
+    let peer_request_buffer = [1; 6];
+    socket.send_to(&peer_request_buffer, remote_addr).await?;
+    Ok(())
+}
+
+fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(), ImageError> {
+    // Load the image
+    let img = image::open(input_path)?;
+
+    // Get the current dimensions of the image
+    let (width, height) = img.dimensions();
+
+    // Calculate the new height while maintaining aspect ratio
+    let aspect_ratio = height as f32 / width as f32;
+    let new_height = (new_width as f32 * aspect_ratio).round() as u32;
+
+    // Resize the image
+    let resized_img = img.resize_exact(new_width, new_height, FilterType::Nearest);
+
+    // Save the resized image
+    resized_img.save(output_path)?;
+
     Ok(())
 }
 
@@ -61,6 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("Please provide a repetition count as the first argument")
         .parse() // Attempt to parse the argument as an integer
         .expect("Please provide a valid integer for the repetition count");
+
+    resize_image("./src/car.png", "./src/resized.png", 50)?;
 
     //original
     let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
@@ -81,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ping servers "I'm up"
     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-
+    request_ds(&socket, remote_addr1).await?;
 
    //send image to servers
    for i in 0..repetition_count {    

@@ -169,6 +169,16 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                 packet_buffer = [0; 4104];
                 continue;
             }
+            if len == 7 {
+                println!("Received request for DS");
+                //read the DS file and send it to the client
+                let mut DS = File::open("./src/DS.txt")?;
+                let mut DS_string = String::new();
+                DS.read_to_string(&mut DS_string)?;
+                client_socket_send.send_to(DS_string.as_bytes(), &client).await?;
+                continue;
+            }
+            
             processing_buffer = packet_buffer;
             let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
             println!("Packet sequence number: {}", received_sequence_number);
