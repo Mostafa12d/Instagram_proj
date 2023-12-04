@@ -153,7 +153,6 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         let image_string = image_num.to_string();
         let image_name = "imgs/img_rcv".to_string() + &image_string + ".png";
         let image_name2 = image_name.clone();
-        let mut file = File::create(image_name)?;
         let mut i = 0;
         //receive image packets from client
         i+=1;
@@ -179,13 +178,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             continue;
         }
         if len == 5 {
-            println!("Received request for DoSS");
+            println!("Received request from client");
             num_requests = num_requests + 1;
             //fault tolerance
             let my_serv = serv_struct_vec.iter_mut().find(|serv| serv.address == server_port).unwrap();
             my_serv.size = num_requests + process_count as u32;
             let mut server_load =  my_serv.size.clone();
-    
+            
             
             let message_str = server_load.to_string();
             // let m = "Hello, yasta!";
@@ -211,7 +210,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     Ok(Err(_)) | Err(_) => {
                         eprintln!("Timeout reached while waiting for data");
                     }
-            }
+                }
             }
             //election//
             //check if there are servers that did not send a message
@@ -230,19 +229,20 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             let mut i = 0;
             if serv_struct_vec[0].size as usize == server_load as usize{
                 for serv in &serv_struct_vec{
-                     if serv.size == serv_struct_vec[0].size{
-                         i = i+1;
-                     }
+                    if serv.size == serv_struct_vec[0].size{
+                        i = i+1;
                     }
-                    println!("{}", i);
-                    let server_seed = 42; // Replace this with the synchronized seed for each server
-                    let random_number = generate_random_number(server_seed, i);
-                    println!("random number {}", random_number);
-        
-                    let chosen_server = serv_struct_vec[random_number as usize].address.clone();
-                    if chosen_server == server_port{
-                        //execute
-                        println!("I am {} the chosen server ", chosen_server);
+                }
+                println!("{}", i);
+                let server_seed = 42; // Replace this with the synchronized seed for each server
+                let random_number = generate_random_number(server_seed, i);
+                println!("random number {}", random_number);
+                
+                let chosen_server = serv_struct_vec[random_number as usize].address.clone();
+                if chosen_server == server_port{
+                    //execute
+                    println!("I am {} the chosen server ", chosen_server);
+                    let mut file = File::create(image_name)?;
                         //send to client 
                         let request_buffer = [1; 4];
                         client_socket.send_to(&request_buffer, &client).await?;
