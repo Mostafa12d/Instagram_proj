@@ -91,7 +91,7 @@ fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(
 }
 
 fn resize_all_images(new_width: u32) -> Result<(), ImageError> {
-    let imgs_directory = Path::new("./src/imgs");
+    let imgs_directory = Path::new("./decoded_imgs");
     let resized_directory = Path::new("./resized_imgs");
 
     // Create the resized_imgs directory if it doesn't exist
@@ -129,6 +129,34 @@ fn is_image_file(path: &Path) -> bool {
     }
 }
 
+async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSocket) -> Result<String, Box<dyn std::error::Error>> {
+    // Send a request to the server
+    let mut server_buffer = [0; 4096];
+    // let mut received_data = Vec::new();
+    let image_name = folder.to_string() + "/img_rcv" + &image_string + ".png";
+    let image_cloned = image_name.clone();
+    let mut file = File::create(image_name)?;
+    let mut i = 0;
+    loop{
+        i+=1;
+        // println!("Waiting for a message...");
+        //receive message from client
+        server_buffer = [0; 4096];
+        
+        let (len, server) = socket.recv_from(&mut server_buffer).await?;
+
+        println!("Received {} bytes from {}", len, server);
+        file.write_all(&server_buffer[..len])?;
+        server_buffer = [0; 4096];
+        // println!("Received string: {}", client);
+        // breah after the last packet
+        if len != 4096 {
+            break;
+        }
+    }
+    Ok(image_cloned)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -151,7 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = socket.local_addr()?;
     // let port = local_addr.port();
     // println!("Listening on {}", port);
-
+    
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     let addr = socket.local_addr()?;
     let port = addr.port();
@@ -169,37 +197,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     img.read_to_end(&mut buffer)?;    
     let mut image_num:u32 = 0;
 
+
     // ping servers "I'm up"
     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     let mut client_vec = Vec::new();
     client_vec = request_ds(&socket, remote_addr1).await?;
-    if client_vec.len() != 0 {
-        println!("Received the address: {} from server", &client_vec[0]);
-        //send_to_peer(&socket, &client_vec[0]).await?;
-    }
-    // rceive frmo cleint length of 6 means a client requesting all low res images
-    // let (len, src) = socket.recv_from(&mut server_buffer).await?;
-    // if len == 6 {
-    //     // send all the low res images to the client
-    //     let imgs_directory = Path::new("./resized_imgs");
-    //     for entry in fs::read_dir(imgs_directory)? {
-    //         let entry = entry?;
-    //         let path = entry.path();
 
-    //         // Check if the entry is a file and has an image extension
-    //         if path.is_file() && is_image_file(&path) {
-    //             let input_path = path.to_str().unwrap();
-    //             let mut img = File::open(input_path)?;
-    //             let mut buffer = Vec::new();
-    //             img.read_to_end(&mut buffer)?;
-    //             //send image to client
-    //             socket.send_to(&buffer, src).await?;
-    //         }
-    //     }
-    //     //clear buffer
-    //     server_buffer = [0; 4096];
-    // }
-    //sending a request for a server to establish connection. Message code len of 5
     let request_buffer = [1; 5];
     //send image to servers
     for i in 0..repetition_count {    
@@ -207,10 +210,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        let mut sequence_number:u64 = 1;
        let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
        if len == 4{
-            for chunk in buffer.chunks(4096) {
-                let mut packet_vector: Vec<u8> = Vec::new();
-
-                // Include the sequence number in the packet
+           for chunk in buffer.chunks(4096) {
+               let mut packet_vector: Vec<u8> = Vec::new();
+               
+               // Include the sequence number in the packet
                 packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
                 packet_vector.extend_from_slice(chunk);
 
@@ -228,35 +231,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             println!("Sent the image to the servers");
-            server_buffer = [0; 4096];
-            // let mut received_data = Vec::new();
-            let image_string = image_num.to_string();
-            let image_name = "imgs/img_rcv".to_string() + &image_string + ".png";
-            let image_cloned = image_name.clone();
-            let mut file = File::create(image_name)?;
-            let mut i = 0;
-            loop{
-                i+=1;
-                // println!("Waiting for a message...");
-                //receive message from client
-                server_buffer = [0; 4096];
-                let (len, server) = socket.recv_from(&mut server_buffer).await?;
-
-                println!("Received {} bytes from {}", len, server);
-                file.write_all(&server_buffer[..len])?;
-                server_buffer = [0; 4096];
-                // println!("Received string: {}", client);
-                // breah after the last packet
-                if len != 4096 {
-                    break;
-                }
+            let folder = "server_imgs".to_string();
+            if !Path::new(&folder).exists() {
+                fs::create_dir(&folder)?;
             }
-
+            let image_string = image_num.to_string();
             
+           let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
 
             // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
             //if image_num == 0 {
-            let image_name2 = "imgs/decoded_img".to_string() + &image_string + ".png";
+            let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
             // let mut file2 = File::create(image_name2)?;
             let clone = image::open(image_cloned)?;
             let img_buffer = clone.to_rgba();
@@ -273,6 +258,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             image_num += 1;
         }
     }
+
+    if client_vec.len() != 0 {
+        //println!("Received the address: {} from server", &client_vec[0]);
+        let clienttt="172.29.255.134:12345";
+        send_to_peer(&socket, &clienttt).await?;
+        //receive from client low res images 
+        let folder = "client_imgs".to_string();
+            if !Path::new(&folder).exists() {
+                fs::create_dir(&folder)?;
+            }
+        let image_num = 0;  
+        let image_string = image_num.to_string();
+        let trial = receive_image(&folder, &image_string, &socket).await?;
+        
+    }
+    
+
+    let mut client_buffer = [1; 6];
+    // rceive frmo cleint length of 6 means a client requesting all low res images
+    let (len, src) = socket.recv_from(&mut client_buffer).await?;
+    if len == 6 {
+        // send all the low res images to the client
+        let imgs_directory = Path::new("./resized_imgs");
+        for entry in fs::read_dir(imgs_directory)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if the entry is a file and has an image extension
+            if path.is_file() && is_image_file(&path) {
+                let input_path = path.to_str().unwrap();
+                let mut img = File::open(input_path)?;
+                let mut buffer = Vec::new();
+                img.read_to_end(&mut buffer)?;
+                //send image to client
+                socket.send_to(&buffer, src).await?;
+            }
+        }
+        //clear buffer
+        client_buffer = [1; 6];
+    }
+    // receive low res images from clients
+    //sending a request for a server to establish connection. Message code len of 5
+    
         
     //add 2 secs delay
     //sleep(Duration::from_secs(2)).await;
