@@ -18,6 +18,8 @@ use steganography::encoder::*;
 use std::env;
 use std::path::{Path, PathBuf};
 use local_ip_address::local_ip;
+use tokio::task;
+use tokio::sync::mpsc;
 
 
 
@@ -157,6 +159,42 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
+// create function for user menu to handle inputs
+// fn user_menu() {
+//     println!("Please select an option:");
+//     println!("1. Send an image to the server");
+//     println!("2. Request an image from the server");
+//     println!("3. Request all images from the server");
+//     println!("4. Exit");
+// }
+
+fn user_menu() {
+    loop {
+        println!("Please select an option:");
+        println!("1. Request list of Available Clients");
+        println!("2. Request low-resolution image from a client");
+        println!("3. Request image from a client");
+        println!("4. Exit");
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).expect("Failed to read line");
+
+        match input.trim() {
+            "1" => {
+                 
+                println!("Option 1 selected")
+        },
+            "2" => println!("Option 2 selected"),
+            "3" => println!("Option 3 selected"),
+            "4" => {
+                println!("Exiting...");
+                break;
+            },
+            _ => println!("Invalid option, please try again."),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -197,6 +235,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     img.read_to_end(&mut buffer)?;    
     let mut image_num:u32 = 0;
 
+    let (tx, mut rx): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel(32);
+    let tx1 = tx.clone();
+
+    // clone the socket to be used in the thread
+// create a thread to do the user_menu 
+let user_menu_handle = task::spawn_blocking(move || {
+    user_menu();
+});
+
 
     // ping servers "I'm up"
     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
@@ -209,6 +256,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
        let mut sequence_number:u64 = 1;
        let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
+       // if receievd a notification from the elected leader, send them the image for encryption
        if len == 4{
            for chunk in buffer.chunks(4096) {
                let mut packet_vector: Vec<u8> = Vec::new();
