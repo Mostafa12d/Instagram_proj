@@ -20,7 +20,8 @@ use std::path::{Path, PathBuf};
 use local_ip_address::local_ip;
 use tokio::task;
 use tokio::sync::mpsc;
-
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -159,16 +160,34 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
-// create function for user menu to handle inputs
 // fn user_menu() {
-//     println!("Please select an option:");
-//     println!("1. Send an image to the server");
-//     println!("2. Request an image from the server");
-//     println!("3. Request all images from the server");
-//     println!("4. Exit");
+//     loop {
+//         println!("Please select an option:");
+//         println!("1. Request list of Available Clients");
+//         println!("2. Request low-resolution image from a client");
+//         println!("3. Request image from a client");
+//         println!("4. Exit");
+
+//         let mut input = String::new();
+//         std::io::stdin().read_line(&mut input).expect("Failed to read line");
+
+//         match input.trim() {
+//             "1" => {
+                 
+//                 println!("Option 1 selected")
+//         },
+//             "2" => println!("Option 2 selected"),
+//             "3" => println!("Option 3 selected"),
+//             "4" => {
+//                 println!("Exiting...");
+//                 break;
+//             },
+//             _ => println!("Invalid option, please try again."),
+//         }
+//     }
 // }
 
-fn user_menu() {
+fn user_menu(shared_data: Arc<Mutex<i32>>) {
     loop {
         println!("Please select an option:");
         println!("1. Request list of Available Clients");
@@ -179,21 +198,25 @@ fn user_menu() {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
 
-        match input.trim() {
-            "1" => {
-                 
-                println!("Option 1 selected")
-        },
-            "2" => println!("Option 2 selected"),
-            "3" => println!("Option 3 selected"),
+        let option = match input.trim() {
+            "1" => 1,
+            "2" => 2,
+            "3" => 3,
             "4" => {
                 println!("Exiting...");
                 break;
             },
-            _ => println!("Invalid option, please try again."),
-        }
+            _ => {
+                println!("Invalid option, please try again.");
+                continue;
+            },
+        };
+
+        let mut data = shared_data.lock().unwrap();
+        *data = option;
     }
 }
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -238,17 +261,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, mut rx): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel(32);
     let tx1 = tx.clone();
 
-    // clone the socket to be used in the thread
 // create a thread to do the user_menu 
-let user_menu_handle = task::spawn_blocking(move || {
-    user_menu();
-});
 
+let shared_data = Arc::new(Mutex::new(0));
+
+    // Clone the Arc to pass to the thread
+    let shared_data_clone = Arc::clone(&shared_data);
+    
+    // Spawn the user_menu in a separate thread
+    thread::spawn(move || {
+        user_menu(shared_data_clone);
+    });
+
+
+    loop {
+        // Lock the mutex and read the data
+        let mut data = shared_data.lock().unwrap();
+
+        match *data {
+            1 => {
+                println!("Option 1 selected: Request list of Available Clients");
+                // Implement logic for option 1
+                let mut client_vec = Vec::new();
+                // Request list of available clients from servers
+                 client_vec = request_ds(&socket, remote_addr1).await?;
+                *data = 0; // Reset the shared data after processing
+            },
+            2 => {
+                println!("Option 2 selected: Request low-resolution image from a client");
+                // Implement logic for option 2
+                *data = 0; // Reset the shared data after processing
+            },
+            3 => {
+                println!("Option 3 selected: Request image from a client");
+                // Implement logic for option 3
+                *data = 0; // Reset the shared data after processing
+            },
+            4 => {
+                println!("Exiting...");
+                // Implement any cleanup or exit logic
+                break;
+            },
+            0 => (), // No new input, do nothing
+            _ => {
+                println!("Invalid option received: {}", *data);
+                *data = 0; // Reset the shared data if invalid input is received
+            },
+        }
+
+        // Release the lock before sleeping
+        drop(data);
+
+        // Sleep for a short duration to reduce CPU usage
+        thread::sleep(Duration::from_millis(100));
+    }
 
     // ping servers "I'm up"
     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     let mut client_vec = Vec::new();
+
+
+    // Request list of available clients from servers
     client_vec = request_ds(&socket, remote_addr1).await?;
+
+    
 
     let request_buffer = [1; 5];
     //send image to servers
@@ -258,7 +334,8 @@ let user_menu_handle = task::spawn_blocking(move || {
        let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
        // if receievd a notification from the elected leader, send them the image for encryption
        if len == 4{
-           for chunk in buffer.chunks(4096) {
+       // socket.connect(&serv).await?;
+        for chunk in buffer.chunks(4096) {
                let mut packet_vector: Vec<u8> = Vec::new();
                
                // Include the sequence number in the packet
@@ -268,8 +345,7 @@ let user_menu_handle = task::spawn_blocking(move || {
                 //send packets to server
                 //println!("Sending chunk of: {}", chunk.len());
                 socket.send_to(&packet_vector, serv).await?;
-                // socket.send_to(&packet_vector, remote_addr2).await?;
-                // socket.send_to(&packet_vector, remote_addr3).await?;
+                //socket.send(&packet_vector).await?;
                 
                 //sleep for 1ms
                 sleep(Duration::from_millis(100)).await;
@@ -285,8 +361,9 @@ let user_menu_handle = task::spawn_blocking(move || {
             }
             let image_string = image_num.to_string();
             
-           let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
 
+            // RECEIVE IMAGES FROM SERVERS
+            let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
             // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
             //if image_num == 0 {
             let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
@@ -309,8 +386,15 @@ let user_menu_handle = task::spawn_blocking(move || {
 
     if client_vec.len() != 0 {
         //println!("Received the address: {} from server", &client_vec[0]);
-        let clienttt="172.29.255.134:12345";
+        
+        
+        // Request low res images from a peer
+        //let clienttt="172.29.255.134:12345";
+        let clienttt = &client_vec[0];
         send_to_peer(&socket, &clienttt).await?;
+
+
+
         //receive from client low res images 
         let folder = "client_imgs".to_string();
             if !Path::new(&folder).exists() {

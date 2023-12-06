@@ -198,7 +198,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             let mut received_servers = Vec::new();
             for saddr in &server_addr_v{
                 //if the server is not responding for 0.5 seconds, then we will assume that it is down
-                match time::timeout(Duration::from_millis(200), server_socket.recv_from(&mut server_buffer)).await{
+                match time::timeout(Duration::from_millis(6000), server_socket.recv_from(&mut server_buffer)).await{
                     Ok(Ok((len, server))) => {
                         let message_server = std::str::from_utf8(&server_buffer[..len])?;
                         println!("Received the buffer size of: {} from server {}", message_server, server);
@@ -245,12 +245,18 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                     let mut file = File::create(image_name)?;
                         //send to client 
                         let request_buffer = [1; 4];
-                        client_socket.send_to(&request_buffer, &client).await?;
+                        let new_socket = UdpSocket::bind("0.0.0:0").await?;
+                        new_socket.connect(&client).await?;
+                        new_socket.send(&request_buffer).await?;
+                        //client_socket.send_to(&request_buffer, &client).await?;
                         loop{
                             i+=1;
                             println!("i = {}", i);
                             packet_buffer = [0; 4104];
-                            let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
+                            
+                            let len = new_socket.recv(&mut packet_buffer).await?;
+
+                            //let (len, client) = client_socket.recv_from(&mut packet_buffer).await?;
                             let length = len;
                             processing_buffer = packet_buffer;
                             let received_sequence_number = u64::from_be_bytes(processing_buffer[0..8].try_into().unwrap());
@@ -304,7 +310,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                                 for chunk in encoded_vec.chunks(4096){
                                 //send packets to server
                                 println!("Sending chunk of: {} to {}", chunk.len(), client_address);
-                                client_socket_send.send_to(chunk, &client_address).await?;
+                                new_socket.send_to(chunk, &client_address).await?;
                                 if chunk.len() != 4096 {
                                    break;
                                 }
