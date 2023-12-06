@@ -202,10 +202,8 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
             "1" => 1,
             "2" => 2,
             "3" => 3,
-            "4" => {
-                println!("Exiting...");
-                break;
-            },
+            "4" => 4,
+            "5" => 5,
             _ => {
                 println!("Invalid option, please try again.");
                 continue;
@@ -225,16 +223,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("Please provide a repetition count as the first argument")
         .parse() // Attempt to parse the argument as an integer
         .expect("Please provide a valid integer for the repetition count");
-
-
+    
+    
     // for all images in the imgs folder, call the resize_image function
     resize_all_images(50)?;
-
+    
     //original
     let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
     let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
     let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
-
+    
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     // get my port number
     // let local_addr = socket.local_addr()?;
@@ -257,24 +255,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // iterate 400 times in a for loop
     img.read_to_end(&mut buffer)?;    
     let mut image_num:u32 = 0;
-
+    
     let (tx, mut rx): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel(32);
     let tx1 = tx.clone();
-
-// create a thread to do the user_menu 
-
-let shared_data = Arc::new(Mutex::new(0));
-
+    
+    // create a thread to do the user_menu 
+    
+    let shared_data = Arc::new(Mutex::new(0));
+    
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
+    // ping servers "I'm up"
+    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     
     // Spawn the user_menu in a separate thread
     thread::spawn(move || {
         user_menu(shared_data_clone);
     });
 
-
+    
     loop {
+    let mut client_vec = Vec::new();
         // Lock the mutex and read the data
         let mut data = shared_data.lock().unwrap();
 
@@ -282,22 +283,113 @@ let shared_data = Arc::new(Mutex::new(0));
             1 => {
                 println!("Option 1 selected: Request list of Available Clients");
                 // Implement logic for option 1
-                let mut client_vec = Vec::new();
                 // Request list of available clients from servers
                  client_vec = request_ds(&socket, remote_addr1).await?;
                 *data = 0; // Reset the shared data after processing
             },
-            2 => {
+            2 => { //still not developed
                 println!("Option 2 selected: Request low-resolution image from a client");
                 // Implement logic for option 2
                 *data = 0; // Reset the shared data after processing
+                if client_vec.len() != 0 {
+                    //println!("Received the address: {} from server", &client_vec[0]);
+                    
+                    
+                    // Request low res images from a peer
+                    //let clienttt="172.29.255.134:12345";
+                    let clienttt = &client_vec[0];
+                    send_to_peer(&socket, &clienttt).await?;
+            
+            
+            
+                    //receive from client low res images 
+                    let folder = "client_imgs".to_string();
+                        if !Path::new(&folder).exists() {
+                            fs::create_dir(&folder)?;
+                        }
+                    let image_num = 0;  
+                    let image_string = image_num.to_string();
+                    let trial = receive_image(&folder, &image_string, &socket).await?;
+                    
+                }
+                
             },
             3 => {
                 println!("Option 3 selected: Request image from a client");
+                for client in client_vec.iter() {
+                    println!("Client: {}", client);
+                }
                 // Implement logic for option 3
                 *data = 0; // Reset the shared data after processing
             },
             4 => {
+                println!("Option 4 selected: Encrypt img through server");
+                let request_buffer = [1; 5];
+                //send image to servers
+                for i in 0..repetition_count {    
+                   send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+                   let mut sequence_number:u64 = 1;
+                   let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
+                   // if receievd a notification from the elected leader, send them the image for encryption
+                   if len == 4{
+                   // socket.connect(&serv).await?;
+                    for chunk in buffer.chunks(4096) {
+                           let mut packet_vector: Vec<u8> = Vec::new();
+                           
+                           // Include the sequence number in the packet
+                            packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                            packet_vector.extend_from_slice(chunk);
+            
+                            //send packets to server
+                            //println!("Sending chunk of: {}", chunk.len());
+                            socket.send_to(&packet_vector, serv).await?;
+                            //socket.send(&packet_vector).await?;
+                            
+                            //sleep for 1ms
+                            sleep(Duration::from_millis(100)).await;
+                            // Increment the sequence number for the next packet
+                            sequence_number += 1;
+                            println!("Sent packet of size {}"  , packet_vector.len());
+                        }
+            
+                        println!("Sent the image to the servers");
+                        let folder = "server_imgs".to_string();
+                        if !Path::new(&folder).exists() {
+                            fs::create_dir(&folder)?;
+                        }
+                        let image_string = image_num.to_string();
+                        
+            
+                        // RECEIVE IMAGES FROM SERVERS
+                        let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
+                        // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
+                        //if image_num == 0 {
+                        let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
+                        // let mut file2 = File::create(image_name2)?;
+                        let clone = image::open(image_cloned)?;
+                        let img_buffer = clone.to_rgba();
+                        // println!("Image Buffer content: {:?}", img_buffer);
+                        //let img_buffer_clone = img_buffer.clone();
+                        let decoded_image = Decoder::new(img_buffer);
+                        let decoded_secret = decoded_image.decode_alpha();
+            
+                        let decoded_img = image::load_from_memory(&decoded_secret)?;
+                        let mut output_file = BufWriter::new(File::create(image_name2)?);
+                        decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
+                        // file2.write_all(&decoded_secret).unwrap();
+                        //}
+                        image_num += 1;
+                    }
+                }
+                
+            },
+            5 => {
+                println!("Option 5 selected: Send image to client");
+            }
+            6 => {
+                println!("Option  6: View available images");
+            }
+            7 => {
                 println!("Exiting...");
                 // Implement any cleanup or exit logic
                 break;
@@ -306,7 +398,32 @@ let shared_data = Arc::new(Mutex::new(0));
             _ => {
                 println!("Invalid option received: {}", *data);
                 *data = 0; // Reset the shared data if invalid input is received
-            },
+                
+                
+                    let mut client_buffer = [1; 6];
+                    // rceive frmo cleint length of 6 means a client requesting all low res images
+                    let (len, src) = socket.recv_from(&mut client_buffer).await?;
+                    if len == 6 {
+                        // send all the low res images to the client
+                        let imgs_directory = Path::new("./resized_imgs");
+                        for entry in fs::read_dir(imgs_directory)? {
+                            let entry = entry?;
+                            let path = entry.path();
+                
+                            // Check if the entry is a file and has an image extension
+                            if path.is_file() && is_image_file(&path) {
+                                let input_path = path.to_str().unwrap();
+                                let mut img = File::open(input_path)?;
+                                let mut buffer = Vec::new();
+                                img.read_to_end(&mut buffer)?;
+                                //send image to client
+                                socket.send_to(&buffer, src).await?;
+                            }
+                        }
+                        //clear buffer
+                        client_buffer = [1; 6];
+                    }
+                },
         }
 
         // Release the lock before sleeping
@@ -315,121 +432,14 @@ let shared_data = Arc::new(Mutex::new(0));
         // Sleep for a short duration to reduce CPU usage
         thread::sleep(Duration::from_millis(100));
     }
-
-    // ping servers "I'm up"
-    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-    let mut client_vec = Vec::new();
+    
 
 
     // Request list of available clients from servers
-    client_vec = request_ds(&socket, remote_addr1).await?;
+    // client_vec = request_ds(&socket, remote_addr1).await?;
 
     
 
-    let request_buffer = [1; 5];
-    //send image to servers
-    for i in 0..repetition_count {    
-       send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-       let mut sequence_number:u64 = 1;
-       let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
-       // if receievd a notification from the elected leader, send them the image for encryption
-       if len == 4{
-       // socket.connect(&serv).await?;
-        for chunk in buffer.chunks(4096) {
-               let mut packet_vector: Vec<u8> = Vec::new();
-               
-               // Include the sequence number in the packet
-                packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
-                packet_vector.extend_from_slice(chunk);
-
-                //send packets to server
-                //println!("Sending chunk of: {}", chunk.len());
-                socket.send_to(&packet_vector, serv).await?;
-                //socket.send(&packet_vector).await?;
-                
-                //sleep for 1ms
-                sleep(Duration::from_millis(100)).await;
-                // Increment the sequence number for the next packet
-                sequence_number += 1;
-                println!("Sent packet of size {}"  , packet_vector.len());
-            }
-
-            println!("Sent the image to the servers");
-            let folder = "server_imgs".to_string();
-            if !Path::new(&folder).exists() {
-                fs::create_dir(&folder)?;
-            }
-            let image_string = image_num.to_string();
-            
-
-            // RECEIVE IMAGES FROM SERVERS
-            let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
-            // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
-            //if image_num == 0 {
-            let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
-            // let mut file2 = File::create(image_name2)?;
-            let clone = image::open(image_cloned)?;
-            let img_buffer = clone.to_rgba();
-            // println!("Image Buffer content: {:?}", img_buffer);
-            //let img_buffer_clone = img_buffer.clone();
-            let decoded_image = Decoder::new(img_buffer);
-            let decoded_secret = decoded_image.decode_alpha();
-
-            let decoded_img = image::load_from_memory(&decoded_secret)?;
-            let mut output_file = BufWriter::new(File::create(image_name2)?);
-            decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
-            // file2.write_all(&decoded_secret).unwrap();
-            //}
-            image_num += 1;
-        }
-    }
-
-    if client_vec.len() != 0 {
-        //println!("Received the address: {} from server", &client_vec[0]);
-        
-        
-        // Request low res images from a peer
-        //let clienttt="172.29.255.134:12345";
-        let clienttt = &client_vec[0];
-        send_to_peer(&socket, &clienttt).await?;
-
-
-
-        //receive from client low res images 
-        let folder = "client_imgs".to_string();
-            if !Path::new(&folder).exists() {
-                fs::create_dir(&folder)?;
-            }
-        let image_num = 0;  
-        let image_string = image_num.to_string();
-        let trial = receive_image(&folder, &image_string, &socket).await?;
-        
-    }
-    
-
-    let mut client_buffer = [1; 6];
-    // rceive frmo cleint length of 6 means a client requesting all low res images
-    let (len, src) = socket.recv_from(&mut client_buffer).await?;
-    if len == 6 {
-        // send all the low res images to the client
-        let imgs_directory = Path::new("./resized_imgs");
-        for entry in fs::read_dir(imgs_directory)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            // Check if the entry is a file and has an image extension
-            if path.is_file() && is_image_file(&path) {
-                let input_path = path.to_str().unwrap();
-                let mut img = File::open(input_path)?;
-                let mut buffer = Vec::new();
-                img.read_to_end(&mut buffer)?;
-                //send image to client
-                socket.send_to(&buffer, src).await?;
-            }
-        }
-        //clear buffer
-        client_buffer = [1; 6];
-    }
     // receive low res images from clients
     //sending a request for a server to establish connection. Message code len of 5
     
