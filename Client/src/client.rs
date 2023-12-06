@@ -142,7 +142,7 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     let mut i = 0;
     loop{
         i+=1;
-        // println!("Waiting for a message...");
+        println!("Waiting for a message...");
         //receive message from client
         server_buffer = [0; 4096];
         
@@ -193,7 +193,9 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
         println!("1. Request list of Available Clients");
         println!("2. Request low-resolution image from a client");
         println!("3. Request image from a client");
-        println!("4. Exit");
+        println!("4. Encrypt Image through server");
+        println!("5. Send image to client");
+        println!("6. View available images");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
@@ -204,10 +206,12 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
             "3" => 3,
             "4" => 4,
             "5" => 5,
-            _ => {
-                println!("Invalid option, please try again.");
-                continue;
-            },
+            "6" => 6,
+            _ => 
+                0,
+                //println!("Invalid option, please try again.");
+                //continue;
+            
         };
 
         let mut data = shared_data.lock().unwrap();
@@ -274,8 +278,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     
-    loop {
     let mut client_vec = Vec::new();
+    loop {
         // Lock the mutex and read the data
         let mut data = shared_data.lock().unwrap();
 
@@ -290,28 +294,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             2 => { //still not developed
                 println!("Option 2 selected: Request low-resolution image from a client");
                 // Implement logic for option 2
-                *data = 0; // Reset the shared data after processing
+                println!("Received the address: {} from server", &client_vec[0]);
+
                 if client_vec.len() != 0 {
-                    //println!("Received the address: {} from server", &client_vec[0]);
+                    println!("Received the address: {} from server", &client_vec[0]);
                     
                     
                     // Request low res images from a peer
                     //let clienttt="172.29.255.134:12345";
                     let clienttt = &client_vec[0];
+                    println!("Sending request to client: {}", clienttt);
                     send_to_peer(&socket, &clienttt).await?;
-            
+                    
             
             
                     //receive from client low res images 
+                    // let folder = "client_imgs".to_string();
+                    //     if !Path::new(&folder).exists() {
+                    //         fs::create_dir(&folder)?;
+                    //     }
                     let folder = "client_imgs".to_string();
-                        if !Path::new(&folder).exists() {
-                            fs::create_dir(&folder)?;
-                        }
-                    let image_num = 0;  
                     let image_string = image_num.to_string();
+                    println!("Receiving image from client: {}", clienttt);
                     let trial = receive_image(&folder, &image_string, &socket).await?;
-                    
+                    println!("Received image from client: {}", clienttt);
+                    image_num += 1;  
                 }
+                    *data = 0; // Reset the shared data after processing
                 
             },
             3 => {
@@ -323,8 +332,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 *data = 0; // Reset the shared data after processing
             },
             4 => {
+                
                 println!("Option 4 selected: Encrypt img through server");
-                let request_buffer = [1; 5];
+                let request_buffer: [u8; 5] = [1; 5];
                 //send image to servers
                 for i in 0..repetition_count {    
                    send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
@@ -337,13 +347,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                            let mut packet_vector: Vec<u8> = Vec::new();
                            
                            // Include the sequence number in the packet
-                            packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
-                            packet_vector.extend_from_slice(chunk);
+                           packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                           packet_vector.extend_from_slice(chunk);
             
-                            //send packets to server
-                            //println!("Sending chunk of: {}", chunk.len());
-                            socket.send_to(&packet_vector, serv).await?;
-                            //socket.send(&packet_vector).await?;
+                           //send packets to server
+                           //println!("Sending chunk of: {}", chunk.len());
+                           socket.send_to(&packet_vector, serv).await?;
+                           //socket.send(&packet_vector).await?;
                             
                             //sleep for 1ms
                             sleep(Duration::from_millis(100)).await;
@@ -359,7 +369,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         let image_string = image_num.to_string();
                         
-            
+                        
                         // RECEIVE IMAGES FROM SERVERS
                         let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
                         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
@@ -372,7 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         //let img_buffer_clone = img_buffer.clone();
                         let decoded_image = Decoder::new(img_buffer);
                         let decoded_secret = decoded_image.decode_alpha();
-            
+                        
                         let decoded_img = image::load_from_memory(&decoded_secret)?;
                         let mut output_file = BufWriter::new(File::create(image_name2)?);
                         decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
@@ -381,10 +391,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         image_num += 1;
                     }
                 }
+                *data = 0; // Reset the shared data after processing
                 
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
+                let request_buffer: [u8; 5] = [1; 5];
+                //send image to servers
+                //for i in 0..repetition_count {    
+                  // send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+                   let mut sequence_number:u64 = 1;
+                   // let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
+                   // if receievd a notification from the elected leader, send them the image for encryption
+                  // if len == 4{
+                   // socket.connect(&serv).await?;
+                    // read the image from the file
+                    let image_path = "./src/car.png";
+                    img.read_to_end(&mut buffer)?;
+                    for chunk in buffer.chunks(4096) {
+                           let mut packet_vector: Vec<u8> = Vec::new();
+                           
+                           // Include the sequence number in the packet
+                           packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                           packet_vector.extend_from_slice(chunk);
+            
+                           //send packets to server
+                           //println!("Sending chunk of: {}", chunk.len());
+                           socket.send_to(&packet_vector, &client_vec[0]).await?;
+                           //socket.send(&packet_vector).await?;
+                            
+                            //sleep for 1ms
+                            sleep(Duration::from_millis(100)).await;
+                            // Increment the sequence number for the next packet
+                            sequence_number += 1;
+                            println!("Sent packet of size {}"  , packet_vector.len());
+                        }
+            
+                        *data = 0; // Reset the shared data after processing
+        
+    
             }
             6 => {
                 println!("Option  6: View available images");
@@ -394,35 +439,99 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Implement any cleanup or exit logic
                 break;
             },
-            0 => (), // No new input, do nothing
-            _ => {
-                println!("Invalid option received: {}", *data);
-                *data = 0; // Reset the shared data if invalid input is received
-                
-                
+            0 => {
+                // println!("Helloooo");
+                // println!("default: {}", *data);
+                //*data = 0; // Reset the shared data if invalid input is received
+                let mut length = 0;
+                let mut source;
                     let mut client_buffer = [1; 6];
                     // rceive frmo cleint length of 6 means a client requesting all low res images
-                    let (len, src) = socket.recv_from(&mut client_buffer).await?;
-                    if len == 6 {
-                        // send all the low res images to the client
-                        let imgs_directory = Path::new("./resized_imgs");
-                        for entry in fs::read_dir(imgs_directory)? {
-                            let entry = entry?;
-                            let path = entry.path();
+                    match socket.try_recv_from(&mut client_buffer) {
+                        Ok((len, src)) => {
+                            length = len.clone();
+                            source = src;
+                            // Handle the case where data is successfully received
+                            println!("Received {} bytes from {}", len, src);
+                            // Process the data...
+                            if length == 6 {
+                                // send all the low res images to the client
+                                let imgs_directory = Path::new("./resized_imgs");
+                                for entry in fs::read_dir(imgs_directory)? {
+                                    let entry = entry?;
+                                    let path = entry.path();
+                        
+                                    // Check if the entry is a file and has an image extension
+                                    if path.is_file() && is_image_file(&path) {
+                                        let input_path = path.to_str().unwrap();
+                                        let mut img = File::open(input_path)?;
+                                        let mut buffer = Vec::new();
+                                        img.read_to_end(&mut buffer)?;
+                                        //send image to client
+                    
+                                        for chunk in buffer.chunks(4096) {
+                                            let mut packet_vector: Vec<u8> = Vec::new();
+                                            
+                                            // Include the sequence number in the packet
+                                                //packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                                                packet_vector.extend_from_slice(chunk);
+                                
+                                                //send packets to server
+                                                //println!("Sending chunk of: {}", chunk.len());
+                                                socket.send_to(&packet_vector, source).await?;
+                                                //socket.send(&packet_vector).await?;
+                                                
+                                                //sleep for 1ms
+                                                sleep(Duration::from_millis(100)).await;
+                                                // Increment the sequence number for the next packet
+                                                //sequence_number += 1;
+                                                println!("Sent packet of size {}"  , packet_vector.len());
+                                            }
+                                    }
+                                }
+                                //clear buffer
+                                client_buffer = [1; 6];
+                            }
+                        if length != 6{
+                        let image_string = image_num.to_string();
                 
-                            // Check if the entry is a file and has an image extension
-                            if path.is_file() && is_image_file(&path) {
-                                let input_path = path.to_str().unwrap();
-                                let mut img = File::open(input_path)?;
-                                let mut buffer = Vec::new();
-                                img.read_to_end(&mut buffer)?;
-                                //send image to client
-                                socket.send_to(&buffer, src).await?;
+                        let folder = "client_imgs".to_string();
+                        // RECEIVE IMAGES FROM SERVERS
+                        let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
+                        // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
+                        //if image_num == 0 {
+                        // let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
+                        // // let mut file2 = File::create(image_name2)?;
+                        // let clone = image::open(image_cloned)?;
+                        // let img_buffer = clone.to_rgba();
+                        // // println!("Image Buffer content: {:?}", img_buffer);
+                        // //let img_buffer_clone = img_buffer.clone();
+                        // let decoded_image = Decoder::new(img_buffer);
+                        // let decoded_secret = decoded_image.decode_alpha();
+                        
+                        // let decoded_img = image::load_from_memory(&decoded_secret)?;
+                        // let mut output_file = BufWriter::new(File::create(image_name2)?);
+                        // decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
+                        // file2.write_all(&decoded_secret).unwrap();
+                        //}
+                        image_num += 1;
+                        }
+                        },
+                        Err(e) => {
+                            // Handle the error case
+                            if e.kind() == std::io::ErrorKind::WouldBlock {
+                                // This is the expected "non-blocking" behavior when there's no data
+                                // println!("No data available to read");
+                            } else {
+                                // Handle other kinds of errors
+                                eprintln!("Error occurred: {}", e);
                             }
                         }
-                        //clear buffer
-                        client_buffer = [1; 6];
                     }
+                                        //println!("recieved from client: {}", src);
+            }, // No new input, do nothing
+            _ => {
+                    // *data=0;
                 },
         }
 
