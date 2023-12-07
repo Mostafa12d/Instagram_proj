@@ -172,7 +172,7 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     let mut i = 0;
     loop{
         i+=1;
-        println!("Waiting for a message...");
+        //println!("Waiting for a message...");
         //receive message from client
         server_buffer = [0; 4096];
         
@@ -190,33 +190,6 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
-// fn user_menu() {
-//     loop {
-//         println!("Please select an option:");
-//         println!("1. Request list of Available Clients");
-//         println!("2. Request low-resolution image from a client");
-//         println!("3. Request image from a client");
-//         println!("4. Exit");
-
-//         let mut input = String::new();
-//         std::io::stdin().read_line(&mut input).expect("Failed to read line");
-
-//         match input.trim() {
-//             "1" => {
-                 
-//                 println!("Option 1 selected")
-//         },
-//             "2" => println!("Option 2 selected"),
-//             "3" => println!("Option 3 selected"),
-//             "4" => {
-//                 println!("Exiting...");
-//                 break;
-//             },
-//             _ => println!("Invalid option, please try again."),
-//         }
-//     }
-// }
-
 fn user_menu(shared_data: Arc<Mutex<i32>>) {
     loop {
         println!("Please select an option:");
@@ -226,6 +199,7 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
         println!("4. Encrypt Image through server");
         println!("5. Send image to client");
         println!("6. View available images");
+        println!("7. Exit");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
@@ -237,6 +211,7 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
             "4" => 4,
             "5" => 5,
             "6" => 6,
+            "7" => 7,
             _ => 
                 0,
                 //println!("Invalid option, please try again.");
@@ -247,6 +222,20 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
         let mut data = shared_data.lock().unwrap();
         *data = option;
     }
+}
+
+fn delete_all_files_in_directory(dir: &str) -> std::io::Result<()> {
+    let path = Path::new(dir);
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                fs::remove_file(path)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 
@@ -476,7 +465,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             7 => {
                 println!("Exiting...");
-                // Implement any cleanup or exit logic
+    
+                // Call the function to delete all files in 'client_imgs'
+                if let Err(e) = delete_all_files_in_directory("client_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("resized_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("server_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("client_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("decoded_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+    
+                // Implement any additional cleanup or exit logic
                 break;
             },
             0 => {
