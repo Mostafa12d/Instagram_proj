@@ -1,3 +1,4 @@
+Client1/target
 Client1/target/.rustc_info.json
 Client1/target/debug/client.d
 Client1/target/debug/.fingerprint/adler32-472a763ab977d620/dep-lib-adler32
@@ -1912,3 +1913,5 @@ Client1/Cargo.lock
 Client1/target/debug/client
 Client1/target/debug/client
 Client1/Cargo.lock
+Client1/target/debug/incremental/client-1fujnpselwywq/s-grayj18am9-1hzbrmj-rsrcif4favh0weold2pfqac5/1brudeu5y2kpyame.o
+/target/

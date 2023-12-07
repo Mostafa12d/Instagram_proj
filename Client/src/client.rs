@@ -1,6 +1,6 @@
+// This is the client
 use steganography::encoder::Encoder;
 use steganography::util::save_image_buffer;
-// This is the client
 use tokio::net::UdpSocket;
 use tokio::time::interval;
 use std::io::BufWriter;
@@ -72,10 +72,10 @@ async fn request_ds(socket: &UdpSocket, remote_addr: &str) -> Result<Vec<String>
     let addr = socket.local_addr()?;
     let port = addr.port();
     let local_addr = local_ip.to_string()+":"+port.to_string().as_str();
-    println!("Listening on {}", local_addr);
+    //println!("Listening on {}", local_addr);
 
     let (len, server) = socket.recv_from(&mut rcv_buffer).await?;
-    println!("Received {} bytes from {}", len, server);
+    //println!("Received {} bytes from {}", len, server);
     let message_server = std::str::from_utf8(&rcv_buffer[..len])?;
     //add received server to the vector
     for line in message_server.lines(){
@@ -190,7 +190,42 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
-fn user_menu(shared_data: Arc<Mutex<i32>>) {
+// fn user_menu(shared_data: Arc<Mutex<i32>>) {
+//     loop {
+//         println!("Please select an option:");
+//         println!("1. Request list of Available Clients");
+//         println!("2. Request low-resolution image from a client");
+//         println!("3. Request image from a client");
+//         println!("4. Encrypt Image through server");
+//         println!("5. Send image to client");
+//         println!("6. View available images");
+//         println!("7. Exit");
+
+//         let mut input = String::new();
+//         std::io::stdin().read_line(&mut input).expect("Failed to read line");
+
+//         let option = match input.trim() {
+//             "1" => 1,
+//             "2" => 2,
+//             "3" => 3,
+//             "4" => 4,
+//             "5" => 5,
+//             "6" => 6,
+//             "7" => 7,
+//             _ => 
+//                 0,
+//                 //println!("Invalid option, please try again.");
+//                 //continue;
+            
+//         };
+
+//         let mut data = shared_data.lock().unwrap();
+//         *data = option;
+//     }
+// }
+
+
+fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
     loop {
         println!("Please select an option:");
         println!("1. Request list of Available Clients");
@@ -204,25 +239,29 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
 
-        let option = match input.trim() {
-            "1" => 1,
-            "2" => 2,
-            "3" => 3,
-            "4" => 4,
-            "5" => 5,
-            "6" => 6,
-            "7" => 7,
-            _ => 
-                0,
-                //println!("Invalid option, please try again.");
-                //continue;
-            
-        };
-
         let mut data = shared_data.lock().unwrap();
-        *data = option;
+        match input.trim() {
+            "1" => data.option = 1,
+            "2" => data.option = 2,
+            "3" => data.option = 3,
+            "4" => {
+                println!("How many images would you like to encrypt?:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 4;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "5" => data.option = 5,
+            "6" => data.option = 6,
+            "7" => data.option = 7,
+            _ => {
+                println!("Invalid option, please try again.");
+                continue;
+            },
+        }
     }
 }
+
 
 fn delete_all_files_in_directory(dir: &str) -> std::io::Result<()> {
     let path = Path::new(dir);
@@ -238,17 +277,13 @@ fn delete_all_files_in_directory(dir: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+struct SharedData {
+    option: i32,
+    additional_input: String,
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
-    let repetition_count: usize = args.get(1) // Get the second element (index 1)
-        .expect("Please provide a repetition count as the first argument")
-        .parse() // Attempt to parse the argument as an integer
-        .expect("Please provide a valid integer for the repetition count");
-    
-    
-    // for all images in the imgs folder, call the resize_image function
+async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
     let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
@@ -283,8 +318,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // create a thread to do the user_menu 
     
-    let shared_data = Arc::new(Mutex::new(0));
-    
+    //let shared_data = Arc::new(Mutex::new(0));
+    let shared_data = Arc::new(Mutex::new(SharedData { option: 0, additional_input: String::new() }));
+
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
     // ping servers "I'm up"
@@ -301,15 +337,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Lock the mutex and read the data
         let mut data = shared_data.lock().unwrap();
         
-        match *data {
+        match data.option {
             1 => {
                 println!("Option 1 selected: Request list of Available Clients");
                 // Implement logic for option 1
                 // Request list of available clients from servers
                 client_vec = request_ds(&socket, remote_addr1).await?;
-                *data = 0; // Reset the shared data after processing
+                if client_vec.len() == 0 {
+                    println!("No clients available");
+                }
+                data.option = 0; // Reset the shared data after processing
             },
-            2 => { //still not developed
+            2 => { //needs bug fix
                 println!("Option 2 selected: Request low-resolution image from a client");
                 // Implement logic for option 2
                 println!("Received the address: {} from server", &client_vec[0]);
@@ -338,7 +377,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Received image from client: {}", clienttt);
                     image_num += 1;  
                 }
-                    *data = 0; // Reset the shared data after processing
+                    data.option = 0; // Reset the shared data after processing
                 
             },
             3 => {
@@ -347,14 +386,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Client: {}", client);
                 }
                 // Implement logic for option 3
-                *data = 0; // Reset the shared data after processing
+                data.option = 0; // Reset the shared data after processing
             },
             4 => {
                 
-                println!("Option 4 selected: Encrypt img through server");
+                println!("Option 4 selected: Encrypt Images through server");
                 let request_buffer: [u8; 5] = [1; 5];
                 //send image to servers
-                for i in 0..repetition_count {    
+                // create an int with value of data.additional_input
+                let additional_input = data.additional_input.parse::<u32>().unwrap();                
+                for i in 0..additional_input {    
                     send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
                     let mut sequence_number:u64 = 1;
                     let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
@@ -411,7 +452,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     resize_all_images(50)?;
-                    *data = 0; // Reset the shared data after processing
+                    data.option = 0; // Reset the shared data after processing
                     
             },
             5 => {
@@ -448,7 +489,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Sent packet of size {}"  , packet_vector.len());
                         }
             
-                        *data = 0; // Reset the shared data after processing
+                        data.option = 0; // Reset the shared data after processing
         
     
             },
@@ -460,7 +501,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 image_view -= 1;
                 println!("Image view count: {}", image_view);
-                    *data = 0; // Reset the shared data after processing
+                    data.option = 0; // Reset the shared data after processing
 
             },
             7 => {
