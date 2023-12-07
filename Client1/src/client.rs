@@ -77,13 +77,16 @@ async fn request_ds(socket: &UdpSocket, remote_addr: &str) -> Result<Vec<String>
     let (len, server) = socket.recv_from(&mut rcv_buffer).await?;
     //println!("Received {} bytes from {}", len, server);
     let message_server = std::str::from_utf8(&rcv_buffer[..len])?;
+    let mut i = 0;
     //add received server to the vector
     for line in message_server.lines(){
     if !text_file.contains(&line.to_string()) {
         //add all the ips except the one that sent the message
         if line != local_addr{
         text_file.push(line.to_string());
-        println!("Received this address: {} ", line);
+        i+=1;
+        //println!("Received this address: {} ", line);
+        println!("Client {}: {} ",i, line)
         }
     } 
     }
@@ -242,7 +245,13 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
         let mut data = shared_data.lock().unwrap();
         match input.trim() {
             "1" => data.option = 1,
-            "2" => data.option = 2,
+            "2" => {
+                println!("Please enter the number of the client you want to request from:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 2;
+                data.additional_input = additional_info.trim().to_string();
+            },            
             "3" => data.option = 3,
             "4" => {
                 println!("How many images would you like to encrypt?:");
@@ -340,7 +349,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match data.option {
             1 => {
                 println!("Option 1 selected: Request list of Available Clients");
-                // Implement logic for option 1
                 // Request list of available clients from servers
                 client_vec = request_ds(&socket, remote_addr1).await?;
                 if client_vec.len() == 0 {
@@ -350,16 +358,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             2 => { //needs bug fix
                 println!("Option 2 selected: Request low-resolution image from a client");
-                // Implement logic for option 2
-                println!("Received the address: {} from server", &client_vec[0]);
-                
+                //println!("Received the address: {} from server", &client_vec[0]);
+
                 if client_vec.len() != 0 {
-                    println!("Received the address: {} from server", &client_vec[0]);
+                    //println!("Received the address: {} from server", &client_vec[0]);
                     
                     
                     // Request low res images from a peer
                     //let clienttt="172.29.255.134:12345";
-                    let clienttt = &client_vec[0];
+                    let clienttt = &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1];
                     println!("Sending request to client: {}", clienttt);
                     send_to_peer(&socket, &clienttt).await?;
                     
@@ -453,7 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     resize_all_images(50)?;
                     data.option = 0; // Reset the shared data after processing
-                    
+                    data.additional_input.clear();                    
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
@@ -577,6 +584,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             }
                                     }
                                 }
+                                println!("Sent all the low res images to the client");
                                 //clear buffer
                                 client_buffer = [0; 4096];
                             }
