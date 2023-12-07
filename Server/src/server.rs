@@ -141,6 +141,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     let mut num_requests = 0;
     let mut client_address;
 
+    // Clear the DS file
+    let mut DS = OpenOptions::new()
+    .write(true)
+    .truncate(true)
+    .open("./src/DS.txt")
+    .unwrap();
+
     //client send and receive thread
     loop {
         client_buffer = [0; 4096];

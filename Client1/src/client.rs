@@ -396,11 +396,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
-                let request_buffer: [u8; 5] = [1; 5];
+                let request_buffer: [u8; 9] = [1; 9];
                 //send image to servers
                 //for i in 0..repetition_count {    
                   // send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-                   let mut sequence_number:u64 = 1;
+                   //let mut sequence_number:u64 = 1;
                    // let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
                    // if receievd a notification from the elected leader, send them the image for encryption
                   // if len == 4{
@@ -408,11 +408,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // read the image from the file
                     let image_path = "./src/car.png";
                     img.read_to_end(&mut buffer)?;
+                    socket.send_to(&request_buffer, &client_vec[0]).await?;
                     for chunk in buffer.chunks(4096) {
                            let mut packet_vector: Vec<u8> = Vec::new();
                            
                            // Include the sequence number in the packet
-                           packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                        //    packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
                            packet_vector.extend_from_slice(chunk);
             
                            //send packets to server
@@ -423,17 +424,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             //sleep for 1ms
                             sleep(Duration::from_millis(100)).await;
                             // Increment the sequence number for the next packet
-                            sequence_number += 1;
+                            //sequence_number += 1;
                             println!("Sent packet of size {}"  , packet_vector.len());
                         }
             
                         *data = 0; // Reset the shared data after processing
         
     
-            }
+            },
             6 => {
                 println!("Option  6: View available images");
-            }
+            },
             7 => {
                 println!("Exiting...");
                 // Implement any cleanup or exit logic
@@ -445,7 +446,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 //*data = 0; // Reset the shared data if invalid input is received
                 let mut length = 0;
                 let mut source;
-                    let mut client_buffer = [1; 6];
+                    let mut client_buffer = [0; 4096];
                     // rceive frmo cleint length of 6 means a client requesting all low res images
                     match socket.try_recv_from(&mut client_buffer) {
                         Ok((len, src)) => {
@@ -490,7 +491,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 }
                                 //clear buffer
-                                client_buffer = [1; 6];
+                                client_buffer = [0; 4096];
                             }
                         if length != 6{
                         let image_string = image_num.to_string();
