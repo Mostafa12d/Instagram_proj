@@ -310,7 +310,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                                 for chunk in encoded_vec.chunks(4096){
                                 //send packets to server
                                 println!("Sending chunk of: {} to {}", chunk.len(), client_address);
-                                new_socket.send_to(chunk, &client_address).await?;
+                                new_socket.send(chunk).await?;
                                 if chunk.len() != 4096 {
                                    break;
                                 }

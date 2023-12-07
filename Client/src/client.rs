@@ -1,9 +1,10 @@
 use steganography::encoder::Encoder;
-use steganography::util::save_image_buffer;
+use steganography::util::*;
 // This is the client
 use tokio::net::UdpSocket;
 use tokio::time::interval;
 use std::io::BufWriter;
+use std::process::ExitCode;
 use image::ImageFormat;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageError};
@@ -22,6 +23,7 @@ use tokio::task;
 use tokio::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::str;
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -233,9 +235,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     resize_all_images(50)?;
     
     //original
-    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "10.40.41.229:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "10.40.41.229:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "10.40.41.229:10016"; // IP address and port of the Server 2
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     // get my port number
@@ -382,17 +384,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         //let img_buffer_clone = img_buffer.clone();
                         let decoded_image = Decoder::new(img_buffer);
                         let decoded_secret = decoded_image.decode_alpha();
+
                         
                         let decoded_img = image::load_from_memory(&decoded_secret)?;
                         let mut output_file = BufWriter::new(File::create(image_name2)?);
                         decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
-                        // file2.write_all(&decoded_secret).unwrap();
-                        //}
+
+                        // Serialize text
+                        let text = "Hello, world!".to_string();
+                        let text_bytes = str_to_bytes(&text);
+
+                        // Embed the serialized text into the primary image
+                        let encoder = Encoder::new(&text_bytes, decoded_img);
+                        let encoded_image = encoder.encode_alpha();
+                        // Save the encoded image
+                        // encoded_image.save("encoded_text_image.png")?;
+                        save_image_buffer(encoded_image.clone(), "./src/encoded_txt.png".to_string());
+
+                        // Extract the embedded data
+                        let decoder = Decoder::new(encoded_image);
+                        let decoded_bytes = decoder.decode_alpha();
+                        let clean_buffer: Vec<u8> = decoded_bytes.into_iter()
+                                    .filter(|b| {
+                                        *b != 0xff_u8
+                                    })
+                                    .collect();
+                        //Convert those bytes into a string we can read
+                        let message = bytes_to_str(clean_buffer.as_slice());
+                        //Print it out!
+                        println!("{:?}", message);
                         image_num += 1;
                     }
                 }
                 *data = 0; // Reset the shared data after processing
-                
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
