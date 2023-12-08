@@ -128,7 +128,7 @@ fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(
 
 fn resize_all_images(new_width: u32) -> Result<(), ImageError> {
     let imgs_directory = Path::new("./decoded_imgs");
-    let resized_directory = Path::new("./resized_imgs");
+    let resized_directory = Path::new("./my_low_res_imgs");
 
     // Create the resized_imgs directory if it doesn't exist
     if !resized_directory.exists() {
@@ -193,40 +193,6 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
-// fn user_menu(shared_data: Arc<Mutex<i32>>) {
-//     loop {
-//         println!("Please select an option:");
-//         println!("1. Request list of Available Clients");
-//         println!("2. Request low-resolution image from a client");
-//         println!("3. Request image from a client");
-//         println!("4. Encrypt Image through server");
-//         println!("5. Send image to client");
-//         println!("6. View available images");
-//         println!("7. Exit");
-
-//         let mut input = String::new();
-//         std::io::stdin().read_line(&mut input).expect("Failed to read line");
-
-//         let option = match input.trim() {
-//             "1" => 1,
-//             "2" => 2,
-//             "3" => 3,
-//             "4" => 4,
-//             "5" => 5,
-//             "6" => 6,
-//             "7" => 7,
-//             _ => 
-//                 0,
-//                 //println!("Invalid option, please try again.");
-//                 //continue;
-            
-//         };
-
-//         let mut data = shared_data.lock().unwrap();
-//         *data = option;
-//     }
-// }
-
 
 fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
     loop {
@@ -260,7 +226,13 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
                 data.option = 4;
                 data.additional_input = additional_info.trim().to_string();
             },
-            "5" => data.option = 5,
+            "5" => {
+                println!("Please enter the number of the client you want to send to:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 5;
+                data.additional_input = additional_info.trim().to_string();
+            },
             "6" => data.option = 6,
             "7" => data.option = 7,
             _ => {
@@ -377,7 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     //     if !Path::new(&folder).exists() {
                         //         fs::create_dir(&folder)?;
                         //     }
-                        let folder = "client_imgs".to_string();
+                        let folder = "rcvd_low_res_imgs".to_string();
                         let image_string = image_num.to_string();
                     println!("Receiving image from client: {}", clienttt);
                     let trial = receive_image(&folder, &image_string, &socket).await?;
@@ -385,6 +357,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     image_num += 1;  
                 }
                     data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                    
+
                 
             },
             3 => {
@@ -476,7 +450,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // read the image from the file
                     let image_path = "./server_imgs/img_rcv0.png";
                     img.read_to_end(&mut buffer)?;
-                    socket.send_to(&request_buffer, &client_vec[0]).await?;
+                    socket.send_to(&request_buffer, &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1]).await?;
                     for chunk in buffer.chunks(4096) {
                            let mut packet_vector: Vec<u8> = Vec::new();
                            
@@ -500,7 +474,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
     
             },
-            6 => {
+            6 => { //need to update directory and file name of images to be displayed
                 let mut image_view = 2;
                 println!("Option  6: View available images");
                 if image_view != 0 {
@@ -518,16 +492,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = delete_all_files_in_directory("client_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
-                if let Err(e) = delete_all_files_in_directory("resized_imgs") {
+                if let Err(e) = delete_all_files_in_directory("rcvd_low_res_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
                 if let Err(e) = delete_all_files_in_directory("server_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
-                if let Err(e) = delete_all_files_in_directory("client_imgs") {
+                if let Err(e) = delete_all_files_in_directory("imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
                 if let Err(e) = delete_all_files_in_directory("decoded_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("my_low_res_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
     
@@ -551,7 +528,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Process the data...
                             if length == 6 {
                                 // send all the low res images to the client
-                                let imgs_directory = Path::new("./resized_imgs");
+                                let imgs_directory = Path::new("./my_low_res_imgs");
                                 for entry in fs::read_dir(imgs_directory)? {
                                     let entry = entry?;
                                     let path = entry.path();
