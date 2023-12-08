@@ -27,35 +27,6 @@ use std::time::{Instant};
 use tokio::time::timeout;
 
 
-
-// pub fn display_image(img: DynamicImage) {
-//     let (width, height) = img.dimensions();
-
-//     let buffer: Vec<u32> = img.to_rgba().into_raw().chunks(4).map(|c| {
-//         ((c[3] as u32) << 24) | ((c[0] as u32) << 16) | ((c[1] as u32) << 8) | (c[2] as u32)
-//     }).collect();
-
-//     let mut window = Window::new(
-//         "Image Display",
-//         width as usize,
-//         height as usize,
-//         WindowOptions::default()
-//     ).expect("Unable to open window");
-
-//     let start_time = Instant::now();
-//     let duration = Duration::new(8, 0); // 8 seconds
-
-//     while window.is_open() {
-//         if Instant::now() - start_time >= duration {
-//             break; // Break the loop after 8 seconds
-//         }
-
-//         window.update_with_buffer(&buffer, width as usize, height as usize)
-//               .expect("Failed to update window");
-//     }
-// }
-
-
 pub fn display_image(mut img: DynamicImage) {
     let fixed_width = 800; // Fixed width for display
     let fixed_height = 600; // Fixed height for display
