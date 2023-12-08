@@ -24,6 +24,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use minifb::{Window, WindowOptions};
 use std::time::{Instant};
+use tokio::time::timeout;
+
 
 
 pub fn display_image(img: DynamicImage) {
@@ -127,7 +129,7 @@ fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(
 }
 
 fn resize_all_images(new_width: u32) -> Result<(), ImageError> {
-    let imgs_directory = Path::new("./decoded_imgs");
+    let imgs_directory = Path::new("./my_imgs");
     let resized_directory = Path::new("./my_low_res_imgs");
 
     // Create the resized_imgs directory if it doesn't exist
@@ -286,7 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut server_buffer: [u8; 4096] = [0; 4096]; // this is to receive from the servers with
     let mut ping_buffer: [u8; 8] = [0; 8]; // Tells the server I'm up
     //function to send an image
-    let image_path = "./src/car.png";
+    let image_path = "./my_imgs/car.png";
     let mut img = File::open(image_path)?;
     let mut buffer = Vec::new();
     // println!("Image Buffer content: {:?}", buffer);
@@ -312,6 +314,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_menu(shared_data_clone);
     });
     
+    resize_all_images(50)?;
     
     let mut client_vec = Vec::new();
     loop {
@@ -352,8 +355,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let folder = "rcvd_low_res_imgs".to_string();
                         let image_string = image_num.to_string();
                     println!("Receiving image from client: {}", clienttt);
-                    let trial = receive_image(&folder, &image_string, &socket).await?;
-                    println!("Received image from client: {}", clienttt);
+                    
+                    
+                    //let trial = receive_image(&folder, &image_string, &socket).await?;
+                    let timeout_duration = Duration::from_secs(3);
+                    let receive_result = timeout(timeout_duration, receive_image(&folder, &image_string, &socket)).await;
+                    match receive_result {
+                        Ok(Ok(image_cloned)) => {
+                            println!("Received image from client: {}", clienttt);
+                            // ... handle the received image ...
+                        },
+                        Ok(Err(e)) => {
+                            println!("Failed to receive image: {}", e);
+                        },
+                        Err(_) => {
+                            println!("Timeout occurred while receiving the image");
+                        }
+                    }
+                    
+
+                    //println!("Received image from client: {}", clienttt);
                     image_num += 1;  
                 }
                     data.option = 0; // Reset the shared data after processing
@@ -376,6 +397,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 //send image to servers
                 // create an int with value of data.additional_input
                 let additional_input = data.additional_input.parse::<u32>().unwrap();                
+                let mut image_num:u32 = 0;
                 for i in 0..additional_input {    
                     send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
                     let mut sequence_number:u64 = 1;
@@ -407,7 +429,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if !Path::new(&folder).exists() {
                             fs::create_dir(&folder)?;
                         }
-                        let mut image_num:u32 = 0;
                         let image_string = image_num.to_string();
                         
                         
@@ -432,7 +453,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             image_num += 1;
                         }
                     }
-                    resize_all_images(50)?;
                     data.option = 0; // Reset the shared data after processing
                     data.additional_input.clear();                    
             },
@@ -478,7 +498,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut image_view = 2;
                 println!("Option  6: View available images");
                 if image_view != 0 {
-                    display_image(image::open("./decoded_imgs/decoded_img0.png")?);
+                    display_image(image::open("./rcvd_low_res_imgs/img_rcv0.png")?);
                 }
                 image_view -= 1;
                 println!("Image view count: {}", image_view);
@@ -496,9 +516,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Failed to delete files: {}", e);
                 }
                 if let Err(e) = delete_all_files_in_directory("server_imgs") {
-                    eprintln!("Failed to delete files: {}", e);
-                }
-                if let Err(e) = delete_all_files_in_directory("imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
                 if let Err(e) = delete_all_files_in_directory("decoded_imgs") {
