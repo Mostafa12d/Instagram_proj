@@ -359,20 +359,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     
                     //let trial = receive_image(&folder, &image_string, &socket).await?;
                     let timeout_duration = Duration::from_secs(3);
-                    let receive_result = timeout(timeout_duration, receive_image(&folder, &image_string, &socket)).await;
-                    match receive_result {
-                        Ok(Ok(image_cloned)) => {
-                            println!("Received image from client: {}", clienttt);
-                            // ... handle the received image ...
-                        },
-                        Ok(Err(e)) => {
-                            println!("Failed to receive image: {}", e);
-                        },
-                        Err(_) => {
-                            println!("Timeout occurred while receiving the image");
+                    let mut i = 0;
+                    loop {
+                        let image_string = image_num.to_string();
+                        let receive_result = timeout(timeout_duration, receive_image(&folder, &image_string, &socket)).await;
+                    
+                        match receive_result {
+                            Ok(Ok(image_cloned)) => {
+                                println!("Received image from client: {}", clienttt);
+                                // ... handle the received image ...
+                                image_num += 1; // Increment to prepare for the next image
+                            },
+                            Ok(Err(e)) => {
+                                println!("Failed to receive image: {}", e);
+                                break; // Stop receiving further images on error
+                            },
+                            Err(_) => {
+                               // println!("Timeout occurred while receiving the image");
+                                break; // Stop receiving further images on timeout
+                            }
                         }
+                        i+=1;
                     }
                     
+                    println!("Received {} low-res images from client", i);
 
                     //println!("Received image from client: {}", clienttt);
                     image_num += 1;  
