@@ -241,6 +241,16 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
+fn print_stats(total_images: u32, total_data_sent: u64, elapsed_time: Duration) {
+    let elapsed_secs = elapsed_time.as_secs_f64(); // Converts Duration to seconds as a float
+
+    println!("Statistics:");
+    println!("Total images processed: {}", total_images);
+    println!("Total data sent: {} bytes", total_data_sent);
+    println!("Total time elapsed: {:.2} seconds", elapsed_secs);
+    println!("Average data rate: {:.2} bytes/second", total_data_sent as f64 / elapsed_secs);
+    println!("Average time per image: {:.2} seconds", elapsed_secs / total_images as f64);
+}
 
 fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
     loop {
@@ -468,6 +478,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // create an int with value of data.additional_input
                 let additional_input = data.additional_input.parse::<u32>().unwrap();                
                 let mut image_num:u32 = 0;
+                let mut total_data_sent: u64 = 0;
+                let start_time = Instant::now();
                 for i in 0..additional_input {    
                     send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
                     let mut sequence_number:u64 = 1;
@@ -491,6 +503,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             sleep(Duration::from_millis(100)).await;
                             // Increment the sequence number for the next packet
                             sequence_number += 1;
+                            total_data_sent += packet_vector.len() as u64;
                             println!("Sent packet of size {}"  , packet_vector.len());
                         }
                         
@@ -523,6 +536,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             image_num += 1;
                         }
                     }
+                    let elapsed_time = start_time.elapsed();
+                    print_stats(additional_input, total_data_sent, elapsed_time);
                     data.option = 0; // Reset the shared data after processing
                     data.additional_input.clear();                    
             },
