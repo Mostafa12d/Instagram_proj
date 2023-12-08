@@ -315,13 +315,13 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
                         let mut encoded_vec = Vec::new();  
                         // let mut secret = File::open("./src/yaboy.jpg").unwrap();
                         encoded.read_to_end(&mut encoded_vec).unwrap();
-                                for chunk in encoded_vec.chunks(4096){
-                                //send packets to server
-                                println!("Sending chunk of: {} to {}", chunk.len(), client_address);
-                                new_socket.send(chunk).await?;
-                                if chunk.len() != 4096 {
-                                   break;
-                                }
+                            for chunk in encoded_vec.chunks(4096){
+                            //send packets to server
+                            println!("Sending chunk of: {} to {}", chunk.len(), client_address);
+                            new_socket.send(chunk).await?;
+                            if chunk.len() != 4096 {
+                               break;
+                            }
                                 sleep(Duration::from_millis(5)).await;
                             //     // let delay = time::Duration::from_millis(1000);
                             //     // time::sleep(delay).await;
@@ -354,4 +354,3 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-

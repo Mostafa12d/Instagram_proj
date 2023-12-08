@@ -1,3 +1,4 @@
+// This is the client
 use steganography::encoder::Encoder;
 use steganography::util::*;
 // This is the client
@@ -25,10 +26,28 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use minifb::{Window, WindowOptions};
 use std::time::{Instant};
+use tokio::time::timeout;
 
 
-pub fn display_image(img: DynamicImage) {
+pub fn display_image(mut img: DynamicImage) {
+    let fixed_width = 800; // Fixed width for display
+    let fixed_height = 600; // Fixed height for display
+
+    // Get the current dimensions of the image
     let (width, height) = img.dimensions();
+
+    // Calculate new dimensions to maintain aspect ratio
+    let aspect_ratio = width as f32 / height as f32;
+    let (new_width, new_height) = if aspect_ratio > 1.0 {
+        // Image is wider than tall, fix width and scale height
+        (fixed_width, (fixed_width as f32 / aspect_ratio) as u32)
+    } else {
+        // Image is taller than wide, fix height and scale width
+        ((fixed_height as f32 * aspect_ratio) as u32, fixed_height)
+    };
+
+    // Resize the image
+    img = img.resize_exact(new_width, new_height, FilterType::Nearest);
 
     let buffer: Vec<u32> = img.to_rgba().into_raw().chunks(4).map(|c| {
         ((c[3] as u32) << 24) | ((c[0] as u32) << 16) | ((c[1] as u32) << 8) | (c[2] as u32)
@@ -36,8 +55,8 @@ pub fn display_image(img: DynamicImage) {
 
     let mut window = Window::new(
         "Image Display",
-        width as usize,
-        height as usize,
+        new_width as usize,
+        new_height as usize,
         WindowOptions::default()
     ).expect("Unable to open window");
 
@@ -49,11 +68,10 @@ pub fn display_image(img: DynamicImage) {
             break; // Break the loop after 8 seconds
         }
 
-        window.update_with_buffer(&buffer, width as usize, height as usize)
+        window.update_with_buffer(&buffer, new_width as usize, new_height as usize)
               .expect("Failed to update window");
     }
 }
-use std::str;
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -74,18 +92,21 @@ async fn request_ds(socket: &UdpSocket, remote_addr: &str) -> Result<Vec<String>
     let addr = socket.local_addr()?;
     let port = addr.port();
     let local_addr = local_ip.to_string()+":"+port.to_string().as_str();
-    println!("Listening on {}", local_addr);
+    //println!("Listening on {}", local_addr);
 
     let (len, server) = socket.recv_from(&mut rcv_buffer).await?;
-    println!("Received {} bytes from {}", len, server);
+    //println!("Received {} bytes from {}", len, server);
     let message_server = std::str::from_utf8(&rcv_buffer[..len])?;
+    let mut i = 0;
     //add received server to the vector
     for line in message_server.lines(){
     if !text_file.contains(&line.to_string()) {
         //add all the ips except the one that sent the message
         if line != local_addr{
         text_file.push(line.to_string());
-        println!("Received this address: {} ", line);
+        i+=1;
+        //println!("Received this address: {} ", line);
+        println!("Client {}: {} ",i, line)
         }
     } 
     }
@@ -126,8 +147,8 @@ fn resize_image(input_path: &str, output_path: &str, new_width: u32) -> Result<(
 }
 
 fn resize_all_images(new_width: u32) -> Result<(), ImageError> {
-    let imgs_directory = Path::new("./decoded_imgs");
-    let resized_directory = Path::new("./resized_imgs");
+    let imgs_directory = Path::new("./my_imgs");
+    let resized_directory = Path::new("./my_low_res_imgs");
 
     // Create the resized_imgs directory if it doesn't exist
     if !resized_directory.exists() {
@@ -174,7 +195,7 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     let mut i = 0;
     loop{
         i+=1;
-        println!("Waiting for a message...");
+        //println!("Waiting for a message...");
         //receive message from client
         server_buffer = [0; 4096];
         
@@ -192,34 +213,18 @@ async fn receive_image(folder: &String, image_string: &String ,  socket: &UdpSoc
     Ok(image_cloned)
 }
 
-// fn user_menu() {
-//     loop {
-//         println!("Please select an option:");
-//         println!("1. Request list of Available Clients");
-//         println!("2. Request low-resolution image from a client");
-//         println!("3. Request image from a client");
-//         println!("4. Exit");
+fn print_stats(total_images: u32, total_data_sent: u64, elapsed_time: Duration) {
+    let elapsed_secs = elapsed_time.as_secs_f64(); // Converts Duration to seconds as a float
 
-//         let mut input = String::new();
-//         std::io::stdin().read_line(&mut input).expect("Failed to read line");
+    println!("Statistics:");
+    println!("Total images processed: {}", total_images);
+    println!("Total data sent: {} bytes", total_data_sent);
+    println!("Total time elapsed: {:.2} seconds", elapsed_secs);
+    println!("Average data rate: {:.2} bytes/second", total_data_sent as f64 / elapsed_secs);
+    println!("Average time per image: {:.2} seconds", elapsed_secs / total_images as f64);
+}
 
-//         match input.trim() {
-//             "1" => {
-                 
-//                 println!("Option 1 selected")
-//         },
-//             "2" => println!("Option 2 selected"),
-//             "3" => println!("Option 3 selected"),
-//             "4" => {
-//                 println!("Exiting...");
-//                 break;
-//             },
-//             _ => println!("Invalid option, please try again."),
-//         }
-//     }
-// }
-
-fn user_menu(shared_data: Arc<Mutex<i32>>) {
+fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
     loop {
         println!("Please select an option:");
         println!("1. Request list of Available Clients");
@@ -227,41 +232,83 @@ fn user_menu(shared_data: Arc<Mutex<i32>>) {
         println!("3. Request image from a client");
         println!("4. Encrypt Image through server");
         println!("5. Send image to client");
-        println!("6. View available images");
+        println!("6. View available decoded images");
+        println!("7. View available low-res images");
+        println!("8. Exit");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
 
-        let option = match input.trim() {
-            "1" => 1,
-            "2" => 2,
-            "3" => 3,
-            "4" => 4,
-            "5" => 5,
-            "6" => 6,
-            _ => 
-                0,
-                //println!("Invalid option, please try again.");
-                //continue;
-            
-        };
-
         let mut data = shared_data.lock().unwrap();
-        *data = option;
+        match input.trim() {
+            "1" => data.option = 1,
+            "2" => {
+                println!("Please enter the number of the client you want to request from:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 2;
+                data.additional_input = additional_info.trim().to_string();
+            },            
+            "3" => data.option = 3,
+            "4" => {
+                println!("How many images would you like to encrypt?:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 4;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "5" => {
+                println!("Please enter the number of the client you want to send to:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 5;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "6" => {
+                println!("Please enter the number of the decoded image you want to see:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 6;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "7" => {
+                println!("Please enter the number of the low-res image you want to see:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 7;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "8" => data.option = 8,
+            _ => {
+                println!("Invalid option, please try again.");
+                continue;
+            },
+        }
     }
 }
 
 
+fn delete_all_files_in_directory(dir: &str) -> std::io::Result<()> {
+    let path = Path::new(dir);
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                fs::remove_file(path)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+struct SharedData {
+    option: i32,
+    additional_input: String,
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
-    let repetition_count: usize = args.get(1) // Get the second element (index 1)
-        .expect("Please provide a repetition count as the first argument")
-        .parse() // Attempt to parse the argument as an integer
-        .expect("Please provide a valid integer for the repetition count");
-    
-    
-    // for all images in the imgs folder, call the resize_image function
+async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
     let remote_addr1 = "10.40.41.229:10014"; // IP address and port of the Server 0
@@ -283,7 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut server_buffer: [u8; 4096] = [0; 4096]; // this is to receive from the servers with
     let mut ping_buffer: [u8; 8] = [0; 8]; // Tells the server I'm up
     //function to send an image
-    let image_path = "./src/car.png";
+    let image_path = "./my_imgs/car.png";
     let mut img = File::open(image_path)?;
     let mut buffer = Vec::new();
     // println!("Image Buffer content: {:?}", buffer);
@@ -296,8 +343,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // create a thread to do the user_menu 
     
-    let shared_data = Arc::new(Mutex::new(0));
-    
+    //let shared_data = Arc::new(Mutex::new(0));
+    let shared_data = Arc::new(Mutex::new(SharedData { option: 0, additional_input: String::new() }));
+
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
     // ping servers "I'm up"
@@ -308,32 +356,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_menu(shared_data_clone);
     });
     
+    resize_all_images(50)?;
     
     let mut client_vec = Vec::new();
     loop {
         // Lock the mutex and read the data
         let mut data = shared_data.lock().unwrap();
         
-        match *data {
+        match data.option {
             1 => {
                 println!("Option 1 selected: Request list of Available Clients");
-                // Implement logic for option 1
                 // Request list of available clients from servers
                 client_vec = request_ds(&socket, remote_addr1).await?;
-                *data = 0; // Reset the shared data after processing
+                if client_vec.len() == 0 {
+                    println!("No clients available");
+                }
+                data.option = 0; // Reset the shared data after processing
             },
-            2 => { //still not developed
+            2 => { //needs bug fix
                 println!("Option 2 selected: Request low-resolution image from a client");
-                // Implement logic for option 2
-                println!("Received the address: {} from server", &client_vec[0]);
-                
+                //println!("Received the address: {} from server", &client_vec[0]);
+
                 if client_vec.len() != 0 {
-                    println!("Received the address: {} from server", &client_vec[0]);
+                    //println!("Received the address: {} from server", &client_vec[0]);
                     
                     
                     // Request low res images from a peer
                     //let clienttt="172.29.255.134:12345";
-                    let clienttt = &client_vec[0];
+                    let clienttt = &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1];
                     println!("Sending request to client: {}", clienttt);
                     send_to_peer(&socket, &clienttt).await?;
                     
@@ -344,14 +394,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     //     if !Path::new(&folder).exists() {
                         //         fs::create_dir(&folder)?;
                         //     }
-                        let folder = "client_imgs".to_string();
+                        let folder = "rcvd_low_res_imgs".to_string();
                         let image_string = image_num.to_string();
                     println!("Receiving image from client: {}", clienttt);
-                    let trial = receive_image(&folder, &image_string, &socket).await?;
-                    println!("Received image from client: {}", clienttt);
+                    
+                    
+                    //let trial = receive_image(&folder, &image_string, &socket).await?;
+                    let timeout_duration = Duration::from_secs(1);
+                    let mut i = 0;
+                    loop {
+                        let image_string = image_num.to_string();
+                        let receive_result = timeout(timeout_duration, receive_image(&folder, &image_string, &socket)).await;
+                    
+                        match receive_result {
+                            Ok(Ok(image_cloned)) => {
+                                println!("Received image from client: {}", clienttt);
+                                // ... handle the received image ...
+                                image_num += 1; // Increment to prepare for the next image
+                            },
+                            Ok(Err(e)) => {
+                                println!("Failed to receive image: {}", e);
+                                break; // Stop receiving further images on error
+                            },
+                            Err(_) => {
+                               // println!("Timeout occurred while receiving the image");
+                                break; // Stop receiving further images on timeout
+                            }
+                        }
+                        i+=1;
+                    }
+                    
+                    println!("Received {} low-res images from client", i);
+
+                    //println!("Received image from client: {}", clienttt);
                     image_num += 1;  
                 }
-                    *data = 0; // Reset the shared data after processing
+                    data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                    
+
                 
             },
             3 => {
@@ -360,14 +440,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Client: {}", client);
                 }
                 // Implement logic for option 3
-                *data = 0; // Reset the shared data after processing
+                data.option = 0; // Reset the shared data after processing
             },
             4 => {
                 
-                println!("Option 4 selected: Encrypt img through server");
+                println!("Option 4 selected: Encrypt Images through server");
                 let request_buffer: [u8; 5] = [1; 5];
                 //send image to servers
-                for i in 0..repetition_count {    
+                // create an int with value of data.additional_input
+                let additional_input = data.additional_input.parse::<u32>().unwrap();                
+                let mut image_num:u32 = 0;
+                let mut total_data_sent: u64 = 0;
+                let start_time = Instant::now();
+                for i in 0..additional_input {    
                     send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
                     let mut sequence_number:u64 = 1;
                     let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
@@ -390,6 +475,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             sleep(Duration::from_millis(100)).await;
                             // Increment the sequence number for the next packet
                             sequence_number += 1;
+                            total_data_sent += packet_vector.len() as u64;
                             println!("Sent packet of size {}"  , packet_vector.len());
                         }
                         
@@ -398,7 +484,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if !Path::new(&folder).exists() {
                             fs::create_dir(&folder)?;
                         }
-                        let mut image_num:u32 = 0;
                         let image_string = image_num.to_string();
                         
                         
@@ -446,7 +531,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         image_num += 1;
                     }
                 }
-                *data = 0; // Reset the shared data after processing
+                let elapsed_time = start_time.elapsed();
+                print_stats(additional_input, total_data_sent, elapsed_time);
+                data.option = 0; // Reset the shared data after processing
+                data.additional_input.clear();
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
@@ -462,7 +550,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // read the image from the file
                     let image_path = "./server_imgs/img_rcv0.png";
                     img.read_to_end(&mut buffer)?;
-                    socket.send_to(&request_buffer, &client_vec[0]).await?;
+                    socket.send_to(&request_buffer, &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1]).await?;
                     for chunk in buffer.chunks(4096) {
                            let mut packet_vector: Vec<u8> = Vec::new();
                            
@@ -482,24 +570,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Sent packet of size {}"  , packet_vector.len());
                         }
             
-                        *data = 0; // Reset the shared data after processing
-        
+                        data.option = 0; // Reset the shared data after processing
+                        data.additional_input.clear();                            
     
             },
-            6 => {
-                let mut image_view = 2;
-                println!("Option  6: View available images");
+            6 => { //need to update directory and file name of images to be displayed
+                let mut image_view = 2; // need to handle this somewhere else
+                println!("Option  6: View available decoded images");
                 if image_view != 0 {
-                    display_image(image::open("./decoded_imgs/decoded_img0.png")?);
-                }
+                    let file_path = format!("./rcvd_client_imgs/img_rcv{}.png", data.additional_input.parse::<usize>().unwrap() - 1);
+                    match image::open(&file_path) {
+                    Ok(img) => display_image(img),
+                    Err(e) => println!("Failed to open image: {}", e),
+                                             }
+                                 }
                 image_view -= 1;
-                println!("Image view count: {}", image_view);
-                    *data = 0; // Reset the shared data after processing
-
+                println!("Image views left: {}", image_view);
+                    data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                    
             },
-            7 => {
+            7 => { 
+                println!("Option  7: View available low-res images");
+                
+                let file_path = format!("./rcvd_low_res_imgs/img_rcv{}.png", data.additional_input.parse::<usize>().unwrap() - 1);
+                match image::open(&file_path) {
+                    Ok(img) => display_image(img),
+                    Err(e) => println!("Failed to open image: {}", e),
+                }
+                    data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                    
+            },
+            8 => {
                 println!("Exiting...");
-                // Implement any cleanup or exit logic
+    
+                // Call the function to delete all files in 'client_imgs'
+                if let Err(e) = delete_all_files_in_directory("rcvd_client_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("rcvd_low_res_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("server_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("decoded_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+                if let Err(e) = delete_all_files_in_directory("my_low_res_imgs") {
+                    eprintln!("Failed to delete files: {}", e);
+                }
+    
+                // Implement any additional cleanup or exit logic
                 break;
             },
             0 => {
@@ -519,7 +640,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Process the data...
                             if length == 6 {
                                 // send all the low res images to the client
-                                let imgs_directory = Path::new("./resized_imgs");
+                                let imgs_directory = Path::new("./my_low_res_imgs");
                                 for entry in fs::read_dir(imgs_directory)? {
                                     let entry = entry?;
                                     let path = entry.path();
@@ -552,13 +673,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             }
                                     }
                                 }
+                                println!("Sent all the low res images to the client");
                                 //clear buffer
                                 client_buffer = [0; 4096];
                             }
                         if length != 6{
                         let image_string = image_num.to_string();
                 
-                        let folder = "client_imgs".to_string();
+                        let folder = "rcvd_client_imgs".to_string();
                         // RECEIVE IMAGES FROM SERVERS
                         let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
                         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
