@@ -28,8 +28,53 @@ use tokio::time::timeout;
 
 
 
-pub fn display_image(img: DynamicImage) {
+// pub fn display_image(img: DynamicImage) {
+//     let (width, height) = img.dimensions();
+
+//     let buffer: Vec<u32> = img.to_rgba().into_raw().chunks(4).map(|c| {
+//         ((c[3] as u32) << 24) | ((c[0] as u32) << 16) | ((c[1] as u32) << 8) | (c[2] as u32)
+//     }).collect();
+
+//     let mut window = Window::new(
+//         "Image Display",
+//         width as usize,
+//         height as usize,
+//         WindowOptions::default()
+//     ).expect("Unable to open window");
+
+//     let start_time = Instant::now();
+//     let duration = Duration::new(8, 0); // 8 seconds
+
+//     while window.is_open() {
+//         if Instant::now() - start_time >= duration {
+//             break; // Break the loop after 8 seconds
+//         }
+
+//         window.update_with_buffer(&buffer, width as usize, height as usize)
+//               .expect("Failed to update window");
+//     }
+// }
+
+
+pub fn display_image(mut img: DynamicImage) {
+    let fixed_width = 800; // Fixed width for display
+    let fixed_height = 600; // Fixed height for display
+
+    // Get the current dimensions of the image
     let (width, height) = img.dimensions();
+
+    // Calculate new dimensions to maintain aspect ratio
+    let aspect_ratio = width as f32 / height as f32;
+    let (new_width, new_height) = if aspect_ratio > 1.0 {
+        // Image is wider than tall, fix width and scale height
+        (fixed_width, (fixed_width as f32 / aspect_ratio) as u32)
+    } else {
+        // Image is taller than wide, fix height and scale width
+        ((fixed_height as f32 * aspect_ratio) as u32, fixed_height)
+    };
+
+    // Resize the image
+    img = img.resize_exact(new_width, new_height, FilterType::Nearest);
 
     let buffer: Vec<u32> = img.to_rgba().into_raw().chunks(4).map(|c| {
         ((c[3] as u32) << 24) | ((c[0] as u32) << 16) | ((c[1] as u32) << 8) | (c[2] as u32)
@@ -37,8 +82,8 @@ pub fn display_image(img: DynamicImage) {
 
     let mut window = Window::new(
         "Image Display",
-        width as usize,
-        height as usize,
+        new_width as usize,
+        new_height as usize,
         WindowOptions::default()
     ).expect("Unable to open window");
 
@@ -50,10 +95,11 @@ pub fn display_image(img: DynamicImage) {
             break; // Break the loop after 8 seconds
         }
 
-        window.update_with_buffer(&buffer, width as usize, height as usize)
+        window.update_with_buffer(&buffer, new_width as usize, new_height as usize)
               .expect("Failed to update window");
     }
 }
+
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -204,8 +250,9 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
         println!("3. Request image from a client");
         println!("4. Encrypt Image through server");
         println!("5. Send image to client");
-        println!("6. View available images");
-        println!("7. Exit");
+        println!("6. View available decoded images");
+        println!("7. View available low-res images");
+        println!("8. Exit");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
@@ -235,8 +282,21 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
                 data.option = 5;
                 data.additional_input = additional_info.trim().to_string();
             },
-            "6" => data.option = 6,
-            "7" => data.option = 7,
+            "6" => {
+                println!("Please enter the number of the decoded image you want to see:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 6;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "7" => {
+                println!("Please enter the number of the low-res image you want to see:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 7;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "8" => data.option = 8,
             _ => {
                 println!("Invalid option, please try again.");
                 continue;
@@ -358,7 +418,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     
                     
                     //let trial = receive_image(&folder, &image_string, &socket).await?;
-                    let timeout_duration = Duration::from_secs(3);
+                    let timeout_duration = Duration::from_secs(1);
                     let mut i = 0;
                     loop {
                         let image_string = image_num.to_string();
@@ -501,25 +561,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
             
                         data.option = 0; // Reset the shared data after processing
-        
+                        data.additional_input.clear();                            
     
             },
             6 => { //need to update directory and file name of images to be displayed
-                let mut image_view = 2;
-                println!("Option  6: View available images");
+                let mut image_view = 2; // need to handle this somewhere else
+                println!("Option  6: View available decoded images");
                 if image_view != 0 {
-                    display_image(image::open("./rcvd_low_res_imgs/img_rcv0.png")?);
-                }
+                    let file_path = format!("./rcvd_client_imgs/img_rcv{}.png", data.additional_input.parse::<usize>().unwrap() - 1);
+                    match image::open(&file_path) {
+                    Ok(img) => display_image(img),
+                    Err(e) => println!("Failed to open image: {}", e),
+                                             }
+                                 }
                 image_view -= 1;
-                println!("Image view count: {}", image_view);
+                println!("Image views left: {}", image_view);
                     data.option = 0; // Reset the shared data after processing
-
+                    data.additional_input.clear();                    
             },
-            7 => {
+            7 => { 
+                println!("Option  7: View available low-res images");
+                
+                let file_path = format!("./rcvd_low_res_imgs/img_rcv{}.png", data.additional_input.parse::<usize>().unwrap() - 1);
+                match image::open(&file_path) {
+                    Ok(img) => display_image(img),
+                    Err(e) => println!("Failed to open image: {}", e),
+                }
+                    data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                    
+            },
+            8 => {
                 println!("Exiting...");
     
                 // Call the function to delete all files in 'client_imgs'
-                if let Err(e) = delete_all_files_in_directory("client_imgs") {
+                if let Err(e) = delete_all_files_in_directory("rcvd_client_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
                 if let Err(e) = delete_all_files_in_directory("rcvd_low_res_imgs") {
@@ -595,7 +670,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if length != 6{
                         let image_string = image_num.to_string();
                 
-                        let folder = "client_imgs".to_string();
+                        let folder = "rcvd_client_imgs".to_string();
                         // RECEIVE IMAGES FROM SERVERS
                         let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
                         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
