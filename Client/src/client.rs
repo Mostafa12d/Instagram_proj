@@ -317,11 +317,12 @@ struct SharedData {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
-    let remote_addr1 = "192.168.1.9:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "192.168.1.9:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "192.168.1.9:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "10.40.41.159:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "10.40.41.159:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "10.40.41.159:10016"; // IP address and port of the Server 2
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
+    let mut counter = 0;
     // get my port number
     // let local_addr = socket.local_addr()?;
     // let port = local_addr.port();
@@ -355,7 +356,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
     // ping servers "I'm up"
-    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+    // send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     
     // Spawn the user_menu in a separate thread
     thread::spawn(move || {
@@ -634,11 +635,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = delete_all_files_in_directory("my_low_res_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
+
+                // Send a message to the server to tell it to remove this client from the list
+                let exit_buffer = [1; 10];
+                send_servers_multicast(&socket, &exit_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     
                 // Implement any additional cleanup or exit logic
                 break;
             },
             0 => {
+                // ping servers "I'm up", every 5 seconds
+                counter += 1;
+                // if 5 seconds have passed, send ping
+               if counter == 80 {
+                    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+                    counter = 0; // Reset the timer after sending multicast
+                }
+                //sleep(Duration::from_secs(1)).await;
+                // thread::sleep(Duration::from_secs(5));
+                // send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+    
                 // println!("Helloooo");
                 // println!("default: {}", *data);
                 //*data = 0; // Reset the shared data if invalid input is received

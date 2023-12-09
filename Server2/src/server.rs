@@ -76,6 +76,7 @@ fn compare_servers(a: &ServerInfo, b: &ServerInfo) -> Ordering {
         .then(a_ip.cmp(&b_ip))
         .then(a_port.cmp(&b_port))
 }
+#[allow(unreachable_code)]
 // Start the server
 async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
     //connect to client socket
@@ -167,11 +168,58 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
         println!("i = {}", i);
         let (len, client) = client_socket.recv_from(&mut signal_buffer).await?;
         if len == 8 {
-            println!("Received heartbeat");
-            //Open the DS file and append the socket address to the file
+            let mut file_content = String::new();
+            // Read the existing content of the file
+            let mut DS = OpenOptions::new().read(true).write(true).open("./src/DS.txt")?;
+            DS.read_to_string(&mut file_content)?;
             let client_string = client.to_string();
-            DS.write_all(client_string.as_bytes())?;
-            DS.write_all(b"\n")?;
+            // Check if the client already exists in the file
+            if file_content.lines().any(|line| line == client_string) {
+                println!("Client already exists in the DS file");  
+            } else {
+                println!("Received heartbeat");
+                // Open the DS file and append the socket address to the file
+                // if the client doesn't already exist in the file, add it
+                let mut DS = OpenOptions::new().append(true).open("./src/DS.txt")?;
+                if file_content.lines().count() != 0 {
+                    DS.write_all(b"\n")?;
+                }
+                DS.write_all(client_string.as_bytes())?;
+                //DS.write_all(b"\n")?;
+            }
+            // thread::sleep(Duration::from_secs(5));
+            signal_buffer = [0; 4104];
+            continue;
+        }
+        if len == 10 {
+            println!("Client is going offline");
+        
+            let client_string = client.to_string();
+            //let file_path = Path::new("./src/DS.txt");
+        
+            // Open the DS file and read its content
+            let mut file_content = String::new();
+            let mut DS = OpenOptions::new().read(true).write(true).open("./src/DS.txt")?;
+        
+            DS.read_to_string(&mut file_content)?;
+        
+            // Check if the client already exists in the file
+            if file_content.lines().any(|line| line == client_string) {
+                // Remove the client from the file content
+                let updated_content = file_content.lines()
+                    .filter(|&line| line != client_string)
+                    .collect::<Vec<&str>>()
+                    .join("\n");
+        
+                // Open the file again for writing and overwrite it with the updated content
+                let mut DS = OpenOptions::new().write(true).truncate(true).open("./src/DS.txt")?;
+        
+                DS.write_all(updated_content.as_bytes())?;
+                println!("Client removed from the DS file");
+            } else {
+                println!("Client does not exist in the DS file");
+            }
+        
             signal_buffer = [0; 4104];
             continue;
         }
