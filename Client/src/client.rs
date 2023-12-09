@@ -343,7 +343,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let local_addr = socket.local_addr()?;
     // let port = local_addr.port();
     // println!("Listening on {}", port);
-    
+    let mut num_views = "";
+    let mut id = "";
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     let addr = socket.local_addr()?;
     let port = addr.port();
@@ -541,19 +542,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // read the image from the file
                 let num_views = &data.img_views;
                 let num_imgs = &data.num_imgs.parse::<usize>().unwrap();
+                let mut message = num_views.clone()+","+&client_vec[&data.additional_input.parse::<usize>().unwrap() - 1];
                 // let imgs_directory = Path::new("./my_low_res_imgs");
                 let image_path = Path::new("./decoded_imgs");
+                let mut i = 0;
                 for entry in fs::read_dir(image_path)? {
                     let entry = entry?;
                     let path = entry.path();
-        
+                    if i == num_imgs.clone() {
+                        break;
+                    }
                     // Check if the entry is a file and has an image extension
                     if path.is_file() && is_image_file(&path) {
                         let input_path = path.to_str().unwrap();
                         let mut decoded_img = image::open(input_path)?;
                         let mut buffer = Vec::new();
                         img.read_to_end(&mut buffer)?;
-                        let text_bytes = str_to_bytes(&num_views);
+                        let text_bytes = str_to_bytes(&message);
                         let encoder = Encoder::new(&text_bytes, decoded_img);
                         let encoded_image = encoder.encode_alpha();
                         // Save the encoded image
@@ -585,6 +590,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             println!("Sent encoded img to client {}"  , &data.additional_input);
                         }
+                        i+=1;
                     }
                 // for 
                 // Serialize text ///////////////
@@ -747,8 +753,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     .collect();
                         //Convert those bytes into a string we can read
                         let message = bytes_to_str(clean_buffer.as_slice());
+                        // num_views= "" ;
+                        // id = "";
+                        match message.find(',') {
+                            Some(index) => {
+                                (num_views, id) = message.split_at(index);
+                                id = &id[1..]; // `second` includes the comma, so we use `&second[1..]` to skip it.
+                                // `second` includes the comma, so we use `&second[1..]` to skip it.
+                            },
+                            None => {
+                                (num_views,id)= ("","");
+                            }
+                        }
                         //Print it out!
-                        println!("{:?}", message);        
+                        println!("{}:{}", id, num_views);        
                         image_num += 1;
                         }
                         },
