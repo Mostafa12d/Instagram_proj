@@ -338,12 +338,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
+    let mut counter = 0;
     // get my port number
     // let local_addr = socket.local_addr()?;
     // let port = local_addr.port();
     // println!("Listening on {}", port);
-    
-    let num_views = 0;
+    let mut num_views = "";
+    let mut id = "";
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     let addr = socket.local_addr()?;
     let port = addr.port();
@@ -372,7 +373,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
     // ping servers "I'm up"
-    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+    // send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     
     // Spawn the user_menu in a separate thread
     thread::spawn(move || {
@@ -541,19 +542,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 /////
                 // read the image from the file
                 let num_imgs = &data.num_imgs.parse::<usize>().unwrap();
+                let mut message = num_views.clone()+","+&client_vec[&data.additional_input.parse::<usize>().unwrap() - 1];
                 // let imgs_directory = Path::new("./my_low_res_imgs");
                 let image_path = Path::new("./decoded_imgs");
+                let mut i = 0;
                 for entry in fs::read_dir(image_path)? {
                     let entry = entry?;
                     let path = entry.path();
-        
+                    if i == num_imgs.clone() {
+                        break;
+                    }
                     // Check if the entry is a file and has an image extension
                     if path.is_file() && is_image_file(&path) {
                         let input_path = path.to_str().unwrap();
                         let mut decoded_img = image::open(input_path)?;
                         let mut buffer = Vec::new();
                         img.read_to_end(&mut buffer)?;
-                        let text_bytes = str_to_bytes(&num_views.to_string());
+                        let text_bytes = str_to_bytes(&message);
                         let encoder = Encoder::new(&text_bytes, decoded_img);
                         let encoded_image = encoder.encode_alpha();
                         // Save the encoded image
@@ -585,6 +590,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             println!("Sent encoded img to client {}"  , &data.additional_input);
                         }
+                        i+=1;
                     }
                 // for 
                 // Serialize text ///////////////
@@ -656,11 +662,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = delete_all_files_in_directory("my_low_res_imgs") {
                     eprintln!("Failed to delete files: {}", e);
                 }
+
+                // Send a message to the server to tell it to remove this client from the list
+                let exit_buffer = [1; 10];
+                send_servers_multicast(&socket, &exit_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
     
                 // Implement any additional cleanup or exit logic
                 break;
             },
             0 => {
+                // ping servers "I'm up", every 5 seconds
+                counter += 1;
+                // if 5 seconds have passed, send ping
+               if counter == 80 {
+                    send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+                    counter = 0; // Reset the timer after sending multicast
+                }
+                //sleep(Duration::from_secs(1)).await;
+                // thread::sleep(Duration::from_secs(5));
+                // send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
+    
                 // println!("Helloooo");
                 // println!("default: {}", *data);
                 //*data = 0; // Reset the shared data if invalid input is received
@@ -731,8 +752,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .collect();
                             //Convert those bytes into a string we can read
                             let message = bytes_to_str(clean_buffer.as_slice());
+                        // num_views= "" ;
+                        // id = "";
+                        match message.find(',') {
+                            Some(index) => {
+                                (num_views, id) = message.split_at(index);
+                                id = &id[1..]; // `second` includes the comma, so we use `&second[1..]` to skip it.
+                                // `second` includes the comma, so we use `&second[1..]` to skip it.
+                            },
+                            None => {
+                                (num_views,id)= ("","");
+                            }
+                        }
                             //Print it out!
-                            println!("{:?}", message);        
+                            println!("{}:{}", id, num_views);        
                             image_num += 1;
                             }
                             if length == 10{
