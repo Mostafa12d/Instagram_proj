@@ -622,8 +622,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match image::open(&file_path) {
                     Ok(img) => display_image(img),
                     Err(e) => println!("Failed to open image: {}", e),
-                                             }
-                                 }
+                    }
+                }
+                else {
+                    match image::open("./src/loading.png") {
+                    Ok(img) => display_image(img),
+                    Err(e) => println!("Failed to open image: {}", e),
+                    }
+                }
                 view_count -= 1;
                 println!("Image views left: {}", view_count);
                     data.option = 0; // Reset the shared data after processing
