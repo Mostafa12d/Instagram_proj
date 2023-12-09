@@ -235,7 +235,8 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
         println!("5. Send image to client");
         println!("6. View available decoded images");
         println!("7. View available low-res images");
-        println!("8. Exit");
+        println!("8. Update access rights");
+        println!("9. Exit");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
@@ -283,7 +284,14 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
                 data.option = 7;
                 data.additional_input = additional_info.trim().to_string();
             },
-            "8" => data.option = 8,
+            "8" => {
+                println!("Please enter the number of the client you want to update access rights for:");
+                let mut additional_info = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                data.option = 8;
+                data.additional_input = additional_info.trim().to_string();
+            },
+            "9" => data.option = 9,
             _ => {
                 println!("Invalid option, please try again.");
                 continue;
@@ -317,9 +325,9 @@ struct SharedData {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
-    let remote_addr1 = "192.168.1.9:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "192.168.1.9:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "192.168.1.9:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     // get my port number
@@ -476,11 +484,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             //socket.send(&packet_vector).await?;
                             
                             //sleep for 1ms
-                            sleep(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(10)).await;
                             // Increment the sequence number for the next packet
                             sequence_number += 1;
                             total_data_sent += packet_vector.len() as u64;
-                            println!("Sent packet of size {}"  , packet_vector.len());
+                            println!("Sent packet of size {} to {}"  , packet_vector.len(), serv);
                         }
                         
                         println!("Sent the image to the servers");
@@ -557,10 +565,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let encoder = Encoder::new(&text_bytes, decoded_img);
                 let encoded_image = encoder.encode_alpha();
                 // Save the encoded image
-                save_image_buffer(encoded_image.clone(), "./encoded/encoded_txt.png".to_string());
+                save_image_buffer(encoded_image.clone(), "./src/encoded_txt.png".to_string());
                 ////
                 // open the encoded file
-                let image_path = "./encoded/encoded_txt.png";
+                let image_path = "./src/encoded_txt.png";
                 let mut en_img = File::open(image_path)?;
                 let mut encoded_vec = Vec::new();  
                 en_img.read_to_end(&mut encoded_vec).unwrap();
@@ -615,7 +623,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     data.option = 0; // Reset the shared data after processing
                     data.additional_input.clear();                    
             },
-            8 => {
+            8 => { 
+                println!("Option  8: Update access rights");
+                // Implement logic for option 8
+
+                
+
+                data.option = 0; // Reset the shared data after processing
+                data.additional_input.clear();                    
+            },
+            9 => {
                 println!("Exiting...");
     
                 // Call the function to delete all files in 'client_imgs'
