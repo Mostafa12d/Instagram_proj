@@ -343,6 +343,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let port = local_addr.port();
     // println!("Listening on {}", port);
     
+    let num_views = 0;
     let local_ip = local_ip().unwrap(); // Get the dynamically assigned IP address
     let addr = socket.local_addr()?;
     let port = addr.port();
@@ -492,7 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             //socket.send(&packet_vector).await?;
                             
                             //sleep for 1ms
-                            sleep(Duration::from_millis(10)).await;
+                            sleep(Duration::from_millis(50)).await;
                             // Increment the sequence number for the next packet
                             sequence_number += 1;
                             total_data_sent += packet_vector.len() as u64;
@@ -528,6 +529,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         image_num += 1;
                     }
                 }
+                //num_views = &data.img_views;
                 let elapsed_time = start_time.elapsed();
                 print_stats(additional_input, total_data_sent, elapsed_time);
                 data.option = 0; // Reset the shared data after processing
@@ -538,7 +540,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let request_buffer: [u8; 9] = [1; 9];
                 /////
                 // read the image from the file
-                let num_views = &data.img_views;
                 let num_imgs = &data.num_imgs.parse::<usize>().unwrap();
                 // let imgs_directory = Path::new("./my_low_res_imgs");
                 let image_path = Path::new("./decoded_imgs");
@@ -552,12 +553,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let mut decoded_img = image::open(input_path)?;
                         let mut buffer = Vec::new();
                         img.read_to_end(&mut buffer)?;
-                        let text_bytes = str_to_bytes(&num_views);
+                        let text_bytes = str_to_bytes(&num_views.to_string());
                         let encoder = Encoder::new(&text_bytes, decoded_img);
                         let encoded_image = encoder.encode_alpha();
                         // Save the encoded image
                         let image_string = (image_num).to_string();
                         let image_name2 = "./encoded/encoded_txt".to_string() + &image_string + ".png";
+
                         save_image_buffer(encoded_image.clone(), image_name2.clone());
                         let mut en_img = File::open(image_name2)?;
                         let mut encoded_vec = Vec::new();  
@@ -629,11 +631,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             8 => { 
                 println!("Option  8: Update access rights");
                 // Implement logic for option 8
-
-                
-
+                socket.send_to(&[1; 10], &client_vec[data.additional_input.parse::<usize>().unwrap() - 1]).await?;
+                socket.send_to(data.num_imgs.as_bytes(), &client_vec[data.additional_input.parse::<usize>().unwrap() - 1]).await?;
                 data.option = 0; // Reset the shared data after processing
-                data.additional_input.clear();                    
+                data.additional_input.clear();  
+                data.num_imgs.clear();                  
             },
             9 => {
                 println!("Exiting...");
@@ -712,28 +714,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 //clear buffer
                                 client_buffer = [0; 4096];
                             }
-                        if length == 9{
-                        let image_string = image_num.to_string();
-                
-                        let folder = "rcvd_client_imgs".to_string();
-                        // RECEIVE IMAGES FROM SERVERS
-                        let image_cloned =  receive_image(&folder, &image_string, &socket).await?;
-                        // Extract the embedded data
-                        let decoded_img = image::open(image_cloned)?;
-                        let decoded_img_buffer = decoded_img.to_rgba();
-                        let decoder = Decoder::new(decoded_img_buffer);
-                        let decoded_bytes = decoder.decode_alpha();
-                        let clean_buffer: Vec<u8> = decoded_bytes.into_iter()
-                                    .filter(|b| {
-                                        *b != 0xff_u8
-                                    })
-                                    .collect();
-                        //Convert those bytes into a string we can read
-                        let message = bytes_to_str(clean_buffer.as_slice());
-                        //Print it out!
-                        println!("{:?}", message);        
-                        image_num += 1;
-                        }
+                            if length == 9{
+                            let image_string = image_num.to_string();
+                            let folder = "rcvd_client_imgs".to_string();
+                            // RECEIVE IMAGES FROM SERVERS
+                            let image_cloned =  receive_image(&folder, &image_string, &socket).await?;
+                            // Extract the embedded data
+                            let decoded_img = image::open(image_cloned)?;
+                            let decoded_img_buffer = decoded_img.to_rgba();
+                            let decoder = Decoder::new(decoded_img_buffer);
+                            let decoded_bytes = decoder.decode_alpha();
+                            let clean_buffer: Vec<u8> = decoded_bytes.into_iter()
+                                        .filter(|b| {
+                                            *b != 0xff_u8
+                                        })
+                                        .collect();
+                            //Convert those bytes into a string we can read
+                            let message = bytes_to_str(clean_buffer.as_slice());
+                            //Print it out!
+                            println!("{:?}", message);        
+                            image_num += 1;
+                            }
+                            if length == 10{
+                                let mut buf = [0; 4096];
+                                socket.recv_from(& mut buf).await?;
+                                let num_views = i32::from_be_bytes(buf[0..4].try_into()?);
+                            }
                         },
                         Err(e) => {
                             // Handle the error case
