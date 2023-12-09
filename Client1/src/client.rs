@@ -1,9 +1,12 @@
 // This is the client
 use steganography::encoder::Encoder;
-use steganography::util::save_image_buffer;
+use steganography::util::*;
+// This is the client
 use tokio::net::UdpSocket;
 use tokio::time::interval;
+use core::num;
 use std::io::BufWriter;
+use std::process::ExitCode;
 use image::ImageFormat;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageError};
@@ -70,7 +73,6 @@ pub fn display_image(mut img: DynamicImage) {
               .expect("Failed to update window");
     }
 }
-
 
 
 async fn send_servers_multicast(socket: &UdpSocket, message: &[u8], remote_addr1: &str, remote_addr2: &str, remote_addr3: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -259,9 +261,13 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
             "5" => {
                 println!("Please enter the number of the client you want to send to:");
                 let mut additional_info = String::new();
+                let mut img_views = String::new();
                 std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                println!("Please enter the number of allowed views:");
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read img views");
                 data.option = 5;
                 data.additional_input = additional_info.trim().to_string();
+                data.img_views = img_views.trim().to_string();
             },
             "6" => {
                 println!("Please enter the number of the decoded image you want to see:");
@@ -304,15 +310,16 @@ fn delete_all_files_in_directory(dir: &str) -> std::io::Result<()> {
 struct SharedData {
     option: i32,
     additional_input: String,
+    img_views: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
-    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "192.168.1.9:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "192.168.1.9:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "192.168.1.9:10016"; // IP address and port of the Server 2
     
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     // get my port number
@@ -343,7 +350,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create a thread to do the user_menu 
     
     //let shared_data = Arc::new(Mutex::new(0));
-    let shared_data = Arc::new(Mutex::new(SharedData { option: 0, additional_input: String::new() }));
+    let shared_data = Arc::new(Mutex::new(SharedData { option: 0, additional_input: String::new(), img_views: String::new() }));
 
     // Clone the Arc to pass to the thread
     let shared_data_clone = Arc::clone(&shared_data);
@@ -430,8 +437,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                     data.option = 0; // Reset the shared data after processing
                     data.additional_input.clear();                    
-
-                
             },
             3 => {
                 println!("Option 3 selected: Request image from a client");
@@ -490,64 +495,98 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
                         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
                         //if image_num == 0 {
-                            let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
-                            // let mut file2 = File::create(image_name2)?;
-                            let clone = image::open(image_cloned)?;
-                            let img_buffer = clone.to_rgba();
-                            // println!("Image Buffer content: {:?}", img_buffer);
-                            //let img_buffer_clone = img_buffer.clone();
-                            let decoded_image = Decoder::new(img_buffer);
-                            let decoded_secret = decoded_image.decode_alpha();
-                            
-                            let decoded_img = image::load_from_memory(&decoded_secret)?;
-                            let mut output_file = BufWriter::new(File::create(image_name2)?);
-                            decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
-                            // file2.write_all(&decoded_secret).unwrap();
-                            //}
-                            image_num += 1;
-                        }
+                        let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
+                        // let mut file2 = File::create(image_name2)?;
+                        let clone = image::open(image_cloned)?;
+                        let img_buffer = clone.to_rgba();
+                        // println!("Image Buffer content: {:?}", img_buffer);
+                        //let img_buffer_clone = img_buffer.clone();
+                        let decoded_image = Decoder::new(img_buffer);
+                        let decoded_secret = decoded_image.decode_alpha();
+
+                        
+                        let decoded_img = image::load_from_memory(&decoded_secret)?;
+                        let mut output_file = BufWriter::new(File::create(image_name2)?);
+                        decoded_img.write_to(&mut output_file, ImageFormat::PNG)?;
+                        
+                        // // Serialize text
+                        // let text = "Hello, world!".to_string();
+                        // let text_bytes = str_to_bytes(&text);
+
+                        // // Embed the serialized text into the primary image
+                        // let encoder = Encoder::new(&text_bytes, decoded_img);
+                        // let encoded_image = encoder.encode_alpha();
+                        // // Save the encoded image
+                        // // encoded_image.save("encoded_text_image.png")?;
+                        // save_image_buffer(encoded_image.clone(), "./src/encoded_txt.png".to_string());
+
+                        // // Extract the embedded data
+                        // let decoder = Decoder::new(encoded_image);
+                        // let decoded_bytes = decoder.decode_alpha();
+                        // let clean_buffer: Vec<u8> = decoded_bytes.into_iter()
+                        //             .filter(|b| {
+                        //                 *b != 0xff_u8
+                        //             })
+                        //             .collect();
+                        // //Convert those bytes into a string we can read
+                        // let message = bytes_to_str(clean_buffer.as_slice());
+                        // //Print it out!
+                        // println!("{:?}", message);
+                        image_num += 1;
                     }
-                    let elapsed_time = start_time.elapsed();
-                    print_stats(additional_input, total_data_sent, elapsed_time);
-                    data.option = 0; // Reset the shared data after processing
-                    data.additional_input.clear();                    
+                }
+                let elapsed_time = start_time.elapsed();
+                print_stats(additional_input, total_data_sent, elapsed_time);
+                data.option = 0; // Reset the shared data after processing
+                data.additional_input.clear();
             },
             5 => {
                 println!("Option 5 selected: Send image to client");
                 let request_buffer: [u8; 9] = [1; 9];
-                //send image to servers
-                //for i in 0..repetition_count {    
-                  // send_servers_multicast(&socket, &request_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-                   //let mut sequence_number:u64 = 1;
-                   // let (len, serv) = socket.recv_from(&mut server_buffer).await?; 
-                   // if receievd a notification from the elected leader, send them the image for encryption
-                  // if len == 4{
-                   // socket.connect(&serv).await?;
-                    // read the image from the file
-                    let image_path = "./server_imgs/img_rcv0.png";
-                    img.read_to_end(&mut buffer)?;
-                    socket.send_to(&request_buffer, &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1]).await?;
-                    for chunk in buffer.chunks(4096) {
-                           let mut packet_vector: Vec<u8> = Vec::new();
-                           
-                           // Include the sequence number in the packet
-                        //    packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
-                           packet_vector.extend_from_slice(chunk);
-            
-                           //send packets to server
-                           //println!("Sending chunk of: {}", chunk.len());
-                           socket.send_to(&packet_vector, &client_vec[0]).await?;
-                           //socket.send(&packet_vector).await?;
-                            
-                            //sleep for 1ms
-                            sleep(Duration::from_millis(100)).await;
-                            // Increment the sequence number for the next packet
-                            //sequence_number += 1;
-                            println!("Sent packet of size {}"  , packet_vector.len());
-                        }
-            
-                        data.option = 0; // Reset the shared data after processing
-                        data.additional_input.clear();                            
+                /////
+                // read the image from the file
+                let num_views = &data.img_views;
+                let image_path = "./decoded_imgs/decoded_img0.png";
+                // Serialize text ///////////////
+                let decoded_img = image::open(image_path)?;
+
+                // let text = "Hello, world!".to_string();
+                let text_bytes = str_to_bytes(&num_views);
+
+                // Embed the serialized text into the primary image
+                let encoder = Encoder::new(&text_bytes, decoded_img);
+                let encoded_image = encoder.encode_alpha();
+                // Save the encoded image
+                save_image_buffer(encoded_image.clone(), "./encoded/encoded_txt.png".to_string());
+                ////
+                // open the encoded file
+                let image_path = "./encoded/encoded_txt.png";
+                let mut en_img = File::open(image_path)?;
+                let mut encoded_vec = Vec::new();  
+                en_img.read_to_end(&mut encoded_vec).unwrap();
+                // img.read_to_end(&mut buffer)?;
+                socket.send_to(&request_buffer, &client_vec[&data.additional_input.parse::<usize>().unwrap() - 1]).await?;
+                for chunk in encoded_vec.chunks(4096) {
+                        let mut packet_vector: Vec<u8> = Vec::new();
+                        
+                        // Include the sequence number in the packet
+                    //    packet_vector.extend_from_slice(&sequence_number.to_be_bytes());
+                        packet_vector.extend_from_slice(chunk);
+        
+                        //send packets to server
+                        //println!("Sending chunk of: {}", chunk.len());
+                        socket.send_to(&packet_vector, &client_vec[0]).await?;
+                        //socket.send(&packet_vector).await?;
+                        
+                        //sleep for 1ms
+                        sleep(Duration::from_millis(100)).await;
+                        // Increment the sequence number for the next packet
+                        //sequence_number += 1;
+                        println!("Sent packet of size {}"  , packet_vector.len());
+                    }
+        
+                    data.option = 0; // Reset the shared data after processing
+                    data.additional_input.clear();                            
     
             },
             6 => { //need to update directory and file name of images to be displayed
@@ -658,7 +697,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                         let folder = "rcvd_client_imgs".to_string();
                         // RECEIVE IMAGES FROM SERVERS
-                        let image_cloned =  receive_image(&folder, &image_string, &socket).await?;            
+                        let image_cloned =  receive_image(&folder, &image_string, &socket).await?;
+                        // Extract the embedded data
+                        let decoded_img = image::open(image_cloned)?;
+                        let decoded_img_buffer = decoded_img.to_rgba();
+                        let decoder = Decoder::new(decoded_img_buffer);
+                        let decoded_bytes = decoder.decode_alpha();
+                        let clean_buffer: Vec<u8> = decoded_bytes.into_iter()
+                                    .filter(|b| {
+                                        *b != 0xff_u8
+                                    })
+                                    .collect();
+                        //Convert those bytes into a string we can read
+                        let message = bytes_to_str(clean_buffer.as_slice());
+                        //Print it out!
+                        println!("{:?}", message);        
                         // save_image_buffer(decoded_secret, "./src/decoded.jpg".to_string());
                         //if image_num == 0 {
                         // let image_name2 = "decoded_imgs/decoded_img".to_string() + &image_string + ".png";
