@@ -175,7 +175,7 @@ async fn start_server(local_addr: &str) -> Result<(), Box<dyn Error>> {
             let client_string = client.to_string();
             // Check if the client already exists in the file
             if file_content.lines().any(|line| line == client_string) {
-                println!("Client already exists in the DS file");  
+                println!("Received Heratbeat from existing client");  
             } else {
                 println!("Received heartbeat");
                 // Open the DS file and append the socket address to the file

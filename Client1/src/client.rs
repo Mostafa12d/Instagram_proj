@@ -29,7 +29,7 @@ use std::thread;
 use minifb::{Window, WindowOptions};
 use std::time::{Instant};
 use tokio::time::timeout;
-
+use std::net::SocketAddr;
 
 pub fn display_image(mut img: DynamicImage) {
     let fixed_width = 800; // Fixed width for display
@@ -240,7 +240,8 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
         println!("6. View available decoded images");
         println!("7. View available low-res images");
         println!("8. Update access rights");
-        println!("9. Exit");
+        println!("9. Update access rights for offline client");
+        println!("10. Exit");
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).expect("Failed to read line");
@@ -303,7 +304,27 @@ fn user_menu(shared_data: Arc<Mutex<SharedData>>) {
                 data.additional_input = additional_info.trim().to_string();
                 data.img_views = img_views.trim().to_string();
             },
-            "9" => data.option = 9,
+            "9" => {
+                println!("Please enter the address of the client you want to update acces for (X.X.X.X:Y):");
+                let mut additional_info = String::new();
+                let mut img_views = String::new();
+                std::io::stdin().read_line(&mut additional_info).expect("Failed to read additional information");
+                match additional_info.parse::<SocketAddr>() {
+                    Ok(client_addr) => {
+                        // Now you have a valid SocketAddr that you can use
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to parse address '{}': {}", additional_info, e);
+                        // Handle the error, perhaps by continuing to the next iteration or asking the user again
+                    }
+                }
+                println!("Please enter the number of allowed views:");
+                std::io::stdin().read_line(&mut img_views).expect("Failed to read img views");
+                data.option = 9;
+                data.additional_input = additional_info.trim().to_string();
+                data.img_views = img_views.trim().to_string();
+            },
+            "10" => data.option = 10,
             _ => {
                 println!("Invalid option, please try again.");
                 continue;
@@ -338,11 +359,11 @@ struct SharedData {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {    
     
     //original
-    let remote_addr1 = "10.40.41.229:10014"; // IP address and port of the Server 0
-    let remote_addr2 = "10.40.41.229:10015"; // IP address and port of the Server 1
-    let remote_addr3 = "10.40.41.229:10016"; // IP address and port of the Server 2
+    let remote_addr1 = "172.29.255.134:10014"; // IP address and port of the Server 0
+    let remote_addr2 = "172.29.255.134:10015"; // IP address and port of the Server 1
+    let remote_addr3 = "172.29.255.134:10016"; // IP address and port of the Server 2
     
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
+    let socket = UdpSocket::bind("0.0.0.0:23456").await?;
     let mut counter = 0;
     // get my port number
     // let local_addr = socket.local_addr()?;
@@ -388,7 +409,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     resize_all_images(50)?;
     
     let mut client_vec = Vec::new();
-    loop {
+    let mut offline_clients: Vec<String> = Vec::new();
+    let mut offline_clients_views: Vec<String> = Vec::new();
+       loop {
         // Lock the mutex and read the data
         let mut data = shared_data.lock().unwrap();
         
@@ -657,7 +680,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 data.num_imgs.clear(); 
                 data.img_views.clear();                 
             },
-            9 => {
+            9 => { 
+                println!("Option  9: Update access rights for offline client");
+                // send buffer of size 11 bytes
+                offline_clients.push(data.additional_input.clone());
+                offline_clients_views.push(data.img_views.clone());
+                // socket.send_to(&[1; 11], &data.img_views).await?;
+                // let count = data.img_views.parse::<i32>().unwrap();
+                // socket.send_to(&count.to_be_bytes(), &data.additional_input).await?;
+                data.option = 0; // Reset the shared data after processing
+                data.additional_input.clear();  
+                data.num_imgs.clear(); 
+                data.img_views.clear();                 
+            },
+            10 => {
                 println!("Exiting...");
     
                 // Call the function to delete all files in 'client_imgs'
@@ -688,14 +724,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // ping servers "I'm up", every 5 seconds
                 counter += 1;
                 // if 5 seconds have passed, send ping
-               if counter == 10 {
+                //println!("out");
+               if counter == 20 {
+                //println!("in");
                     send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
                     counter = 0; // Reset the timer after sending multicast
-                }
+                    for (index, client) in offline_clients.iter().enumerate() {
+                        // Send the 10-byte buffer to each client
+                        if let Err(e) = socket.send_to(&[1; 10], client).await {
+                            eprintln!("Failed to send 10-byte buffer to {}: {}", client, e);
+                        }
+            
+                        // Check if there's a corresponding entry in offline_clients_views
+                        if let Some(view_string) = offline_clients_views.get(index) {
+                            // Attempt to parse the string as an i32
+                            if let Ok(view_count) = view_string.parse::<i32>() {
+                                // Convert the view count to bytes (big-endian)
+                                let view_count_bytes = view_count.to_be_bytes();
+            
+                                // Send the view count buffer to the same client
+                                if let Err(e) = socket.send_to(&view_count_bytes, client).await {
+                                    eprintln!("Failed to send view count to {}: {}", client, e);
+                                }
+                            } else {
+                                eprintln!("Failed to parse view count for client {}: {}", client, view_string);
+                            }
+                        }
+                    }
+                            }
                 //sleep(Duration::from_secs(1)).await;
                 // thread::sleep(Duration::from_secs(5));
                 // send_servers_multicast(&socket, &ping_buffer, remote_addr1, remote_addr2, remote_addr3).await?;
-    
+
                 // println!("Helloooo");
                 // println!("default: {}", *data);
                 //*data = 0; // Reset the shared data if invalid input is received
@@ -749,7 +809,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 //clear buffer
                                 client_buffer = [0; 4096];
                             }
-                        if length == 9{
+                            if length == 9{
                             let image_string = image_num.to_string();
                             let folder = "rcvd_client_imgs".to_string();
                             let mut num_views = "";
@@ -786,12 +846,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             id = ids;    
                             image_num += 1;
 
-                        }
-                        if length == 10{
-                            let mut buf = [0; 4096];
-                            socket.recv_from(& mut buf).await?;
-                            view_count = i32::from_be_bytes(buf[0..4].try_into()?);
-                            println!("View count: {}", view_count);
+                            if length == 10{
+                                let mut buf = [0; 4096];
+                                socket.recv_from(& mut buf).await?;
+                                view_count = i32::from_be_bytes(buf[0..4].try_into()?);
+                                println!("View count: {}", view_count);
+                            }
                         }
                         },
                         Err(e) => {
@@ -806,7 +866,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                                         //println!("recieved from client: {}", src);
-            }, // No new input, do nothing
+            }, 
             _ => {
                     // *data=0;
                 },
