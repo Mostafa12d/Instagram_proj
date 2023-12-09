@@ -1,4 +1,5 @@
 Client1/target
+Client2/target
 Client1/target/.rustc_info.json
 Client1/target/debug/client.d
 Client1/target/debug/.fingerprint/adler32-472a763ab977d620/dep-lib-adler32
