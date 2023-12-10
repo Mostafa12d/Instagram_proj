@@ -1,4 +1,5 @@
 {
     "outline.problems.colors": false,
-    "eslint.enable": false
+    "eslint.enable": false,
+    "workbench.colorTheme": "Visual Studio 2017 Dark - C++"
 }
