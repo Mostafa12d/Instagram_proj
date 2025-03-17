@@ -1,6 +1,2 @@
-# Instagram_proj
-
-## Distributed Systems Project 
-Image sharing application
-
-Next Deadline: Sunday, 19th of November. Progress meeting with Professor El-Kadi 
+# Distributed P2P Image Sharing Service in Rust
+Image sharing application in Rust
